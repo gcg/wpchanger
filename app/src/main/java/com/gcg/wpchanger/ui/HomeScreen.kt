@@ -1,10 +1,13 @@
 package com.gcg.wpchanger.ui
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.background
@@ -136,6 +139,25 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Battery Saver / low-battery state can change while the app is open (unlike the checks
+    // above), so this listens live instead of only re-checking on resume.
+    var isBatterySaverOn by remember { mutableStateOf(isBatterySaverOn(context)) }
+    var isBatteryLow by remember { mutableStateOf(isBatteryLow(context)) }
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context, intent: Intent) {
+                isBatterySaverOn = isBatterySaverOn(context)
+                isBatteryLow = isBatteryLow(context)
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
+            addAction(Intent.ACTION_BATTERY_CHANGED)
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -188,6 +210,8 @@ fun HomeScreen(
                     uiState = uiState,
                     onToggleActive = { viewModel.toggleActive(it) },
                     onChangeNow = { viewModel.changeWallpaperNow() },
+                    isBatterySaverOn = isBatterySaverOn,
+                    isBatteryLow = isBatteryLow,
                 )
             }
 
@@ -394,6 +418,8 @@ private fun HeroControlCard(
     uiState: WallpaperUiState,
     onToggleActive: (Boolean) -> Unit,
     onChangeNow: () -> Unit,
+    isBatterySaverOn: Boolean,
+    isBatteryLow: Boolean,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -463,6 +489,31 @@ private fun HeroControlCard(
                         text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (uiState.isActive && (isBatterySaverOn || isBatteryLow)) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BatteryAlert,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.tertiary,
+                    )
+                    Text(
+                        text = if (isBatterySaverOn) {
+                            "Paused while Battery Saver is on"
+                        } else {
+                            "Paused while battery is low"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
                     )
                 }
             }
@@ -693,6 +744,19 @@ private fun hasNotificationPermission(context: Context): Boolean {
     return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
         PackageManager.PERMISSION_GRANTED
 }
+
+private fun isBatterySaverOn(context: Context): Boolean {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+    return powerManager.isPowerSaveMode
+}
+
+private fun isBatteryLow(context: Context): Boolean {
+    val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager ?: return false
+    val level = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    return level in 0..LOW_BATTERY_THRESHOLD_PERCENT && !batteryManager.isCharging
+}
+
+private const val LOW_BATTERY_THRESHOLD_PERCENT = 15
 
 @Composable
 private fun WallpaperPoolHeader(
