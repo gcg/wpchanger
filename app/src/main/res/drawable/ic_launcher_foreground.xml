@@ -1,15 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A photo card (mountain + sun) standing in for the wallpaper pool, with a small
+  shuffle badge in the corner signalling the app's auto-rotation feature.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Photo card -->
     <path
-        android:fillColor="#80CBC4"
-        android:pathData="M30,30h48v48h-48z" />
+        android:fillColor="#F8FAFC"
+        android:pathData="M35,24 H71 A10,10 0 0 1 81,34 V70 A10,10 0 0 1 71,80 H35 A10,10 0 0 1 25,70 V34 A10,10 0 0 1 35,24 Z" />
+
+    <!-- Sun -->
     <path
-        android:fillColor="#004D40"
-        android:pathData="M35,68l11,-15 8,10 11,-14 8,19z" />
+        android:fillColor="#FBBF24"
+        android:pathData="M63,38 m-6,0 a6,6 0,1 1,12 0 a6,6 0,1 1,-12 0" />
+
+    <!-- Mountains, back layer -->
     <path
-        android:fillColor="#FFD54F"
-        android:pathData="M42,44m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+        android:fillColor="#14B8A6"
+        android:pathData="M31,74 L48,50 L58,62 L70,44 L75,74 Z" />
+
+    <!-- Mountains, front layer -->
+    <path
+        android:fillColor="#0F766E"
+        android:pathData="M31,74 L42,58 L50,66 L58,62 L64,74 Z" />
+
+    <!-- Shuffle badge -->
+    <path
+        android:fillColor="#FF6B4A"
+        android:pathData="M76,77 m-13,0 a13,13 0,1 1,26 0 a13,13 0,1 1,-26 0" />
+    <group
+        android:translateX="67"
+        android:translateY="68"
+        android:scaleX="0.75"
+        android:scaleY="0.75">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M17.65,6.35 C16.2,4.9 14.21,4 12,4 c-4.42,0 -7.99,3.58 -7.99,8 s3.57,8 7.99,8 c3.73,0 6.84,-2.55 7.73,-6 h-2.08 c-0.82,2.33 -3.04,4 -5.65,4 c-3.31,0 -6,-2.69 -6,-6 s2.69,-6 6,-6 c1.66,0 3.14,0.69 4.22,1.78 L13,11 h7 V4 l-2.35,2.35 Z" />
+    </group>
 </vector>
