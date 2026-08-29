@@ -2,6 +2,7 @@ package com.gcg.wpchanger
 
 import android.app.Application
 import com.gcg.wpchanger.data.WallpaperPreferences
+import com.gcg.wpchanger.worker.WallpaperNotifier
 import com.gcg.wpchanger.worker.WorkManagerScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,8 @@ class WPChangerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        WallpaperNotifier.createChannel(this)
+
         // Ensure scheduler is active if user previously enabled auto rotation
         val preferences = WallpaperPreferences(this)
         applicationScope.launch {

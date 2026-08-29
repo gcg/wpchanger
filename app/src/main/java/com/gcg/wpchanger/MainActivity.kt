@@ -1,5 +1,6 @@
 package com.gcg.wpchanger
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,6 +39,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                ) { /* No-op: HomeScreen re-checks the permission state on resume regardless. */ }
+
                 HomeScreen(
                     viewModel = viewModel,
                     onPickPhotosClick = {
@@ -47,6 +52,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onPickFolderClick = {
                         openFolderLauncher.launch(null)
+                    },
+                    onRequestNotificationPermission = {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     },
                 )
             }

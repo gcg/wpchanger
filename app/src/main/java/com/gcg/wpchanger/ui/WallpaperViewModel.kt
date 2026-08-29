@@ -29,6 +29,7 @@ data class WallpaperUiState(
     val lastWallpaperName: String = "",
     val isLoading: Boolean = false,
     val userMessage: String? = null,
+    val notifyOnChange: Boolean = false,
 )
 
 class WallpaperViewModel(application: Application) : AndroidViewModel(application) {
@@ -55,6 +56,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
             lastWallpaperName = settings.lastWallpaperName,
             isLoading = isLoading,
             userMessage = message,
+            notifyOnChange = settings.notifyOnChange,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -103,6 +105,17 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             preferences.setTarget(target)
             userMessageFlow.value = "Target updated to ${target.label}"
+        }
+    }
+
+    fun setNotifyOnChange(enabled: Boolean) {
+        viewModelScope.launch {
+            preferences.setNotifyOnChange(enabled)
+            userMessageFlow.value = if (enabled) {
+                "You'll be notified when the wallpaper changes"
+            } else {
+                "Wallpaper-change notifications turned off"
+            }
         }
     }
 

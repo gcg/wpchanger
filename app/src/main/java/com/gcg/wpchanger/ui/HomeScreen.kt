@@ -1,7 +1,9 @@
 package com.gcg.wpchanger.ui
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -45,6 +47,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -84,6 +87,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -103,6 +107,7 @@ fun HomeScreen(
     viewModel: WallpaperViewModel,
     onPickPhotosClick: () -> Unit,
     onPickFolderClick: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -114,12 +119,17 @@ fun HomeScreen(
     var isIgnoringBatteryOptimizations by remember {
         mutableStateOf(isIgnoringBatteryOptimizations(context))
     }
+    var hasNotificationPermission by remember {
+        mutableStateOf(hasNotificationPermission(context))
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // Re-check after returning from the system battery settings screen.
+                // Re-check after returning from the system battery/notification settings screen,
+                // or after responding to the notification permission prompt.
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+                hasNotificationPermission = hasNotificationPermission(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -201,6 +211,14 @@ fun HomeScreen(
                 TimerIntervalCard(
                     selectedInterval = uiState.interval,
                     onIntervalSelected = { viewModel.setInterval(it) },
+                    notifyOnChange = uiState.notifyOnChange,
+                    onNotifyOnChangeToggled = { checked ->
+                        viewModel.setNotifyOnChange(checked)
+                        if (checked && !hasNotificationPermission) {
+                            onRequestNotificationPermission()
+                        }
+                    },
+                    showNotificationPermissionWarning = uiState.notifyOnChange && !hasNotificationPermission,
                 )
             }
 
@@ -483,6 +501,9 @@ private fun HeroControlCard(
 private fun TimerIntervalCard(
     selectedInterval: TimerInterval,
     onIntervalSelected: (TimerInterval) -> Unit,
+    notifyOnChange: Boolean,
+    onNotifyOnChangeToggled: (Boolean) -> Unit,
+    showNotificationPermissionWarning: Boolean,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -533,6 +554,30 @@ private fun TimerIntervalCard(
                         },
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNotifyOnChangeToggled(!notifyOnChange) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = notifyOnChange, onCheckedChange = onNotifyOnChangeToggled)
+                Text(
+                    text = "Notify me when the wallpaper changes",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            if (showNotificationPermissionWarning) {
+                Text(
+                    text = "Notifications are blocked in system settings, so you won't see these.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
             }
         }
     }
@@ -642,6 +687,11 @@ private fun BatteryOptimizationBanner(onRequestClick: () -> Unit) {
 private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
     return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+private fun hasNotificationPermission(context: Context): Boolean {
+    return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+        PackageManager.PERMISSION_GRANTED
 }
 
 @Composable
