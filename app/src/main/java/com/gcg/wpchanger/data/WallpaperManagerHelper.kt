@@ -54,6 +54,15 @@ object WallpaperManagerHelper {
         }
     }
 
+    /**
+     * Decodes a small, EXIF-corrected thumbnail of [file] — e.g. for a notification preview.
+     * Bounded to roughly [maxDimension] on the longest side.
+     */
+    suspend fun decodeThumbnail(file: File, maxDimension: Int): Bitmap? = withContext(Dispatchers.IO) {
+        val bitmap = decodeSampledBitmap(file, maxDimension, maxDimension) ?: return@withContext null
+        fixOrientation(file, bitmap)
+    }
+
     private fun decodeSampledBitmap(file: File, reqWidth: Int, reqHeight: Int): Bitmap? {
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true

@@ -45,6 +45,9 @@ class WallpaperChangeWorker(
                 timestamp = System.currentTimeMillis(),
             )
             preferences.setShuffleQueue(pick.queue)
+            if (preferences.getNotifyOnChange()) {
+                WallpaperNotifier.notifyWallpaperChanged(appContext, nextWallpaper)
+            }
             Result.success()
         } else {
             if (runAttemptCount < 2) {

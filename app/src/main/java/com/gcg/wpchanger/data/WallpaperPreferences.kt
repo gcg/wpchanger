@@ -25,6 +25,7 @@ data class WallpaperSettings(
     val lastWallpaperId: String = "",
     val lastWallpaperName: String = "",
     val shuffleQueue: List<String> = emptyList(),
+    val notifyOnChange: Boolean = false,
 )
 
 class WallpaperPreferences(private val context: Context) {
@@ -37,6 +38,7 @@ class WallpaperPreferences(private val context: Context) {
         val LAST_WALLPAPER_ID = stringPreferencesKey("last_wallpaper_id")
         val LAST_WALLPAPER_NAME = stringPreferencesKey("last_wallpaper_name")
         val SHUFFLE_QUEUE = stringPreferencesKey("shuffle_queue")
+        val NOTIFY_ON_CHANGE = booleanPreferencesKey("notify_on_change")
     }
 
     val settingsFlow: Flow<WallpaperSettings> = context.dataStore.data
@@ -55,6 +57,7 @@ class WallpaperPreferences(private val context: Context) {
                     ?.split(",")
                     ?.filter { it.isNotBlank() }
                     ?: emptyList(),
+                notifyOnChange = preferences[PreferencesKeys.NOTIFY_ON_CHANGE] ?: false,
             )
         }
 
@@ -90,10 +93,17 @@ class WallpaperPreferences(private val context: Context) {
         }
     }
 
+    suspend fun setNotifyOnChange(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.NOTIFY_ON_CHANGE] = enabled
+        }
+    }
+
     suspend fun getSettings(): WallpaperSettings = settingsFlow.first()
     suspend fun getActive(): Boolean = getSettings().isActive
     suspend fun getInterval(): TimerInterval = getSettings().interval
     suspend fun getTarget(): WallpaperTarget = getSettings().target
     suspend fun getLastWallpaperId(): String = getSettings().lastWallpaperId
     suspend fun getShuffleQueue(): List<String> = getSettings().shuffleQueue
+    suspend fun getNotifyOnChange(): Boolean = getSettings().notifyOnChange
 }
