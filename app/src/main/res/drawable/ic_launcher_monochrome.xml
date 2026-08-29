@@ -4,10 +4,8 @@
   ("Material You") icons — the system recolors this using the device's wallpaper-based
   accent color, so only the alpha shape matters, not this fill color.
 
-  The card is an outline rather than a solid fill: this is one flat alpha channel with
-  no color layering, so a solid card would visually swallow the sun/mountains/badge
-  drawn "on top" of it (same opaque alpha = no contrast). An outline keeps the interior
-  transparent so those shapes stay visible.
+  Season colors carry no meaning here, so the 4 fields become thin divider lines (an X) and
+  only the season glyphs + center hourglass remain as solid silhouette shapes.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -15,25 +13,64 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Card outline -->
+    <!-- Quadrant dividers -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FF000000"
-        android:strokeWidth="4"
-        android:pathData="M35,24 H71 A10,10 0 0 1 81,34 V70 A10,10 0 0 1 71,80 H35 A10,10 0 0 1 25,70 V34 A10,10 0 0 1 35,24 Z" />
+        android:strokeWidth="3"
+        android:pathData="M0,0 L108,108 M108,0 L0,108" />
 
-    <!-- Sun -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M63,38 m-6,0 a6,6 0,1 1,12 0 a6,6 0,1 1,-12 0" />
+    <!-- Spring: cherry blossom -->
+    <path android:fillColor="#FF000000" android:pathData="M54,23 m-3.3,0 a3.3,3.3 0,1 1,6.6 0 a3.3,3.3 0,1 1,-6.6 0" />
+    <path android:fillColor="#FF000000" android:pathData="M58.8,26.5 m-3.3,0 a3.3,3.3 0,1 1,6.6 0 a3.3,3.3 0,1 1,-6.6 0" />
+    <path android:fillColor="#FF000000" android:pathData="M56.9,32.1 m-3.3,0 a3.3,3.3 0,1 1,6.6 0 a3.3,3.3 0,1 1,-6.6 0" />
+    <path android:fillColor="#FF000000" android:pathData="M51.1,32.1 m-3.3,0 a3.3,3.3 0,1 1,6.6 0 a3.3,3.3 0,1 1,-6.6 0" />
+    <path android:fillColor="#FF000000" android:pathData="M49.2,26.5 m-3.3,0 a3.3,3.3 0,1 1,6.6 0 a3.3,3.3 0,1 1,-6.6 0" />
 
-    <!-- Mountains -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M31,74 L48,50 L58,62 L70,44 L75,74 Z" />
+    <!-- Summer: sun -->
+    <path android:fillColor="#FF000000" android:pathData="M80,54 m-7,0 a7,7 0,1 1,14 0 a7,7 0,1 1,-14 0" />
+    <group android:pivotX="80" android:pivotY="54" android:rotation="0">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="45">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="90">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="135">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="180">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="225">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="270">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
+    <group android:pivotX="80" android:pivotY="54" android:rotation="315">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M80,45 L80,41" />
+    </group>
 
-    <!-- Shuffle badge -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M76,77 m-13,0 a13,13 0,1 1,26 0 a13,13 0,1 1,-26 0" />
+    <!-- Fall: leaf -->
+    <path android:fillColor="#FF000000" android:pathData="M54,72 C59,74 61,79 54,88 C47,79 49,74 54,72 Z" />
+
+    <!-- Winter: snowflake -->
+    <group android:pivotX="28" android:pivotY="54" android:rotation="0">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M28,45 L28,63" />
+    </group>
+    <group android:pivotX="28" android:pivotY="54" android:rotation="60">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M28,45 L28,63" />
+    </group>
+    <group android:pivotX="28" android:pivotY="54" android:rotation="120">
+        <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M28,45 L28,63" />
+    </group>
+
+    <!-- Center: hourglass -->
+    <path android:fillColor="#FF000000" android:pathData="M45,45 L63,45 L54,54 Z" />
+    <path android:fillColor="#FF000000" android:pathData="M45,63 L63,63 L54,54 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M43,45 L65,45" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2.4" android:strokeLineCap="round" android:pathData="M43,63 L65,63" />
 </vector>

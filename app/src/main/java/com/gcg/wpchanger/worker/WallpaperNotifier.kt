@@ -55,7 +55,7 @@ object WallpaperNotifier {
         val thumbnail = WallpaperManagerHelper.decodeThumbnail(wallpaper.file, THUMBNAIL_SIZE_PX)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_refresh)
+            .setSmallIcon(R.drawable.ic_notification_hourglass)
             .setContentTitle("Wallpaper changed")
             .setContentText(wallpaper.name)
             .setContentIntent(contentIntent)

@@ -1,20 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The foreground's 4 season triangles fully tile the canvas edge-to-edge, so this background
+  is only ever visible as a sliver during some launchers' parallax "tilt" effect between layers.
+  A neutral dark tone keeps that sliver unobtrusive regardless of which season it peeks out from.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="linear"
-                android:startX="0"
-                android:startY="0"
-                android:endX="108"
-                android:endY="108"
-                android:startColor="#2E1065"
-                android:endColor="#7C3AED" />
-        </aapt:attr>
-    </path>
+    <path android:fillColor="#1E1B4B" android:pathData="M0,0h108v108h-108z" />
 </vector>
