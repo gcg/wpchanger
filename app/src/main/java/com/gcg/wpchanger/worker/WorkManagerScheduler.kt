@@ -14,12 +14,18 @@ object WorkManagerScheduler {
     const val UNIQUE_IMMEDIATE_WORK_NAME = "wallpaper_rotator_immediate_work"
     const val IMMEDIATE_WORK_TAG = "wallpaper_rotator_immediate"
 
+    // Skip (and auto-retry once resolved) a scheduled rotation while the battery is critically
+    // low — decoding + setting a wallpaper is unnecessary work exactly when it matters least.
+    private val periodicConstraints = Constraints.Builder()
+        .setRequiresBatteryNotLow(true)
+        .build()
+
     fun schedulePeriodic(context: Context, interval: TimerInterval) {
         val workRequest = PeriodicWorkRequestBuilder<WallpaperChangeWorker>(
             interval.duration,
             interval.timeUnit,
         )
-            .setConstraints(Constraints.NONE)
+            .setConstraints(periodicConstraints)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(

@@ -1,6 +1,7 @@
 package com.gcg.wpchanger.worker
 
 import android.content.Context
+import android.os.PowerManager
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.gcg.wpchanger.data.WallpaperManagerHelper
@@ -21,6 +22,14 @@ class WallpaperChangeWorker(
         val isActive = preferences.getActive()
 
         if (!isActive && !isManualTrigger) {
+            return Result.success()
+        }
+
+        // Battery-not-low is already enforced via WorkManager's own Constraints (the OS won't
+        // even dispatch this job while low), but Battery Saver has no Constraints equivalent —
+        // check it ourselves and skip this cycle. The next periodic run will check again.
+        val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager?.isPowerSaveMode == true && !isManualTrigger) {
             return Result.success()
         }
 
