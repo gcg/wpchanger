@@ -24,6 +24,7 @@ data class WallpaperSettings(
     val lastChangedTimestamp: Long = 0L,
     val lastWallpaperId: String = "",
     val lastWallpaperName: String = "",
+    val shuffleQueue: List<String> = emptyList(),
 )
 
 class WallpaperPreferences(private val context: Context) {
@@ -35,6 +36,7 @@ class WallpaperPreferences(private val context: Context) {
         val LAST_CHANGED_TIMESTAMP = longPreferencesKey("last_changed_timestamp")
         val LAST_WALLPAPER_ID = stringPreferencesKey("last_wallpaper_id")
         val LAST_WALLPAPER_NAME = stringPreferencesKey("last_wallpaper_name")
+        val SHUFFLE_QUEUE = stringPreferencesKey("shuffle_queue")
     }
 
     val settingsFlow: Flow<WallpaperSettings> = context.dataStore.data
@@ -49,6 +51,10 @@ class WallpaperPreferences(private val context: Context) {
                 lastChangedTimestamp = preferences[PreferencesKeys.LAST_CHANGED_TIMESTAMP] ?: 0L,
                 lastWallpaperId = preferences[PreferencesKeys.LAST_WALLPAPER_ID] ?: "",
                 lastWallpaperName = preferences[PreferencesKeys.LAST_WALLPAPER_NAME] ?: "",
+                shuffleQueue = preferences[PreferencesKeys.SHUFFLE_QUEUE]
+                    ?.split(",")
+                    ?.filter { it.isNotBlank() }
+                    ?: emptyList(),
             )
         }
 
@@ -78,9 +84,16 @@ class WallpaperPreferences(private val context: Context) {
         }
     }
 
+    suspend fun setShuffleQueue(queue: List<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SHUFFLE_QUEUE] = queue.joinToString(",")
+        }
+    }
+
     suspend fun getSettings(): WallpaperSettings = settingsFlow.first()
     suspend fun getActive(): Boolean = getSettings().isActive
     suspend fun getInterval(): TimerInterval = getSettings().interval
     suspend fun getTarget(): WallpaperTarget = getSettings().target
     suspend fun getLastWallpaperId(): String = getSettings().lastWallpaperId
+    suspend fun getShuffleQueue(): List<String> = getSettings().shuffleQueue
 }

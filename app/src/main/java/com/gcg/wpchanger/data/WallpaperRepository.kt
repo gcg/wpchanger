@@ -13,7 +13,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import java.util.UUID
+
+enum class ImportOutcome {
+    SAVED,
+    DUPLICATE,
+    UNSUPPORTED,
+    FAILED,
+}
+
+data class ImportSummary(
+    val saved: Int = 0,
+    val duplicates: Int = 0,
+    val unsupported: Int = 0,
+    val failed: Int = 0,
+) {
+    val total: Int get() = saved + duplicates + unsupported + failed
+}
+
+data class ShufflePickResult(val item: WallpaperItem?, val queue: List<String>)
 
 class WallpaperRepository(private val context: Context) {
 
@@ -27,6 +46,10 @@ class WallpaperRepository(private val context: Context) {
 
     private val _wallpapers = MutableStateFlow<List<WallpaperItem>>(emptyList())
     val wallpapers: StateFlow<List<WallpaperItem>> = _wallpapers.asStateFlow()
+
+    // Cache of (file size -> content hashes) for cheap duplicate detection across imports.
+    // Invalidated whenever the on-disk contents change outside of a single import batch.
+    private var hashIndexCache: MutableMap<Long, MutableSet<String>>? = null
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
         val items = loadWallpaperItems()
@@ -51,22 +74,22 @@ class WallpaperRepository(private val context: Context) {
             .sortedByDescending { it.addedTimestamp }
     }
 
-    suspend fun importFromUris(uris: List<Uri>): Int = withContext(Dispatchers.IO) {
-        var successCount = 0
+    suspend fun importFromUris(uris: List<Uri>): ImportSummary = withContext(Dispatchers.IO) {
+        val hashIndex = ensureHashIndex()
+        var summary = ImportSummary()
         for (uri in uris) {
-            if (saveUriToFile(uri)) {
-                successCount++
-            }
+            summary = summary.plus(saveUriToFile(uri, hashIndex = hashIndex))
         }
-        if (successCount > 0) {
+        if (summary.saved > 0) {
             refresh()
         }
-        successCount
+        summary
     }
 
-    suspend fun importFromFolder(treeUri: Uri): Int = withContext(Dispatchers.IO) {
-        var count = 0
+    suspend fun importFromFolder(treeUri: Uri): ImportSummary = withContext(Dispatchers.IO) {
+        var summary = ImportSummary()
         try {
+            val hashIndex = ensureHashIndex()
             val contentResolver = context.contentResolver
             val treeDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
             val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
@@ -100,9 +123,7 @@ class WallpaperRepository(private val context: Context) {
 
                     if (mimeType != null && (mimeType.startsWith("image/") || isImageFile(displayName))) {
                         val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                        if (saveUriToFile(documentUri, displayName)) {
-                            count++
-                        }
+                        summary = summary.plus(saveUriToFile(documentUri, displayName, hashIndex))
                     }
                 }
             }
@@ -110,39 +131,70 @@ class WallpaperRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        if (count > 0) {
+        if (summary.saved > 0) {
             refresh()
         }
-        count
+        summary
     }
 
-    private fun saveUriToFile(uri: Uri, preferredName: String? = null): Boolean {
-        return try {
-            val resolver = context.contentResolver
-            val originalName = preferredName ?: queryDisplayName(uri) ?: "wallpaper.jpg"
-            val extension = getExtension(originalName, uri)
-            val uniqueId = "wp_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}"
-            val sanitizedName = originalName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
-            val targetFileName = "${uniqueId}__$sanitizedName.$extension"
-            val targetFile = File(wallpaperDir, targetFileName)
+    private fun ImportSummary.plus(outcome: ImportOutcome): ImportSummary = when (outcome) {
+        ImportOutcome.SAVED -> copy(saved = saved + 1)
+        ImportOutcome.DUPLICATE -> copy(duplicates = duplicates + 1)
+        ImportOutcome.UNSUPPORTED -> copy(unsupported = unsupported + 1)
+        ImportOutcome.FAILED -> copy(failed = failed + 1)
+    }
 
+    private fun saveUriToFile(
+        uri: Uri,
+        preferredName: String? = null,
+        hashIndex: MutableMap<Long, MutableSet<String>>,
+    ): ImportOutcome {
+        val originalName = preferredName ?: queryDisplayName(uri) ?: "wallpaper.jpg"
+        val extension = getExtension(originalName, uri)
+        if (!isSupportedExtension(extension)) {
+            return ImportOutcome.UNSUPPORTED
+        }
+
+        val resolver = context.contentResolver
+        val uniqueId = "wp_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}"
+        val sanitizedName = originalName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+        val targetFileName = "${uniqueId}__$sanitizedName.$extension"
+        val targetFile = File(wallpaperDir, targetFileName)
+
+        return try {
             resolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(targetFile).use { output ->
                     input.copyTo(output)
                 }
             }
-            targetFile.exists() && targetFile.length() > 0
+
+            if (!targetFile.exists() || targetFile.length() <= 0) {
+                targetFile.delete()
+                return ImportOutcome.FAILED
+            }
+
+            val hash = hashFile(targetFile)
+            val existingHashesForSize = hashIndex.getOrPut(targetFile.length()) { mutableSetOf() }
+            if (!existingHashesForSize.add(hash)) {
+                // Same size + same content hash as something already in the pool: skip the copy.
+                targetFile.delete()
+                return ImportOutcome.DUPLICATE
+            }
+
+            ImportOutcome.SAVED
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            targetFile.delete()
+            ImportOutcome.FAILED
         }
     }
 
     suspend fun deleteWallpaper(id: String): Boolean = withContext(Dispatchers.IO) {
         val files = wallpaperDir.listFiles() ?: return@withContext false
-        val fileToDelete = files.find { it.nameWithoutExtension.startsWith(id) || it.name.startsWith(id) }
+        val fileToDelete = files.find { it.nameWithoutExtension == id }
         val deleted = fileToDelete?.delete() ?: false
         if (deleted) {
+            invalidateHashIndex()
             refresh()
         }
         deleted
@@ -156,23 +208,55 @@ class WallpaperRepository(private val context: Context) {
                 deletedCount++
             }
         }
+        invalidateHashIndex()
         refresh()
         deletedCount
     }
 
-    suspend fun pickNextRandomWallpaper(lastId: String?): WallpaperItem? = withContext(Dispatchers.IO) {
-        val currentList = loadWallpaperItems()
-        if (currentList.isEmpty()) return@withContext null
-        if (currentList.size == 1) return@withContext currentList.first()
+    /**
+     * Picks the next wallpaper using a shuffle bag: every photo in the pool is shown once before
+     * any of them repeat, instead of a fresh independent random pick each time (which can favor
+     * the same handful of photos while starving the rest of the pool).
+     */
+    suspend fun pickNextRandomWallpaper(lastId: String?, queue: List<String>): ShufflePickResult =
+        withContext(Dispatchers.IO) {
+            val currentList = loadWallpaperItems()
+            if (currentList.isEmpty()) return@withContext ShufflePickResult(null, emptyList())
 
-        val candidates = if (!lastId.isNullOrBlank()) {
-            currentList.filter { it.id != lastId }
-        } else {
-            currentList
+            val poolIds = currentList.map { it.id }
+            val pick = ShuffleBag.pickNext(poolIds, queue, lastId)
+            val item = currentList.find { it.id == pick.id }
+            ShufflePickResult(item, pick.remainingQueue)
         }
 
-        val pool = if (candidates.isNotEmpty()) candidates else currentList
-        pool.randomOrNull()
+    private fun ensureHashIndex(): MutableMap<Long, MutableSet<String>> =
+        hashIndexCache ?: buildHashIndex().also { hashIndexCache = it }
+
+    private fun invalidateHashIndex() {
+        hashIndexCache = null
+    }
+
+    private fun buildHashIndex(): MutableMap<Long, MutableSet<String>> {
+        val index = mutableMapOf<Long, MutableSet<String>>()
+        val files = wallpaperDir.listFiles() ?: return index
+        for (file in files) {
+            if (file.isFile) {
+                index.getOrPut(file.length()) { mutableSetOf() }.add(hashFile(file))
+            }
+        }
+        return index
+    }
+
+    private fun hashFile(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) {
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun queryDisplayName(uri: Uri): String? {
@@ -221,9 +305,13 @@ class WallpaperRepository(private val context: Context) {
     }
 
     private fun isImageFile(name: String): Boolean {
-        val lower = name.lowercase()
-        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") ||
-            lower.endsWith(".png") || lower.endsWith(".webp") ||
-            lower.endsWith(".heic") || lower.endsWith(".bmp")
+        val extension = name.substringAfterLast('.', missingDelimiterValue = "")
+        return extension.isNotEmpty() && isSupportedExtension(extension)
+    }
+
+    private fun isSupportedExtension(extension: String): Boolean = extension.lowercase() in SUPPORTED_EXTENSIONS
+
+    companion object {
+        private val SUPPORTED_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "heic", "bmp")
     }
 }

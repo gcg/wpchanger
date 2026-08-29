@@ -23,10 +23,16 @@ object WallpaperManagerHelper {
                 return@withContext Result.failure(IllegalStateException("Setting wallpaper is not allowed on this device or profile."))
             }
 
-            // Get target dimensions for optimal memory & display quality
+            // Prefer the wallpaper system's own desired size: it's typically wider than the
+            // screen to account for home-screen parallax scrolling, so decoding to screen size
+            // alone can leave the wallpaper looking cropped or soft while scrolling. Some
+            // devices report -1/0 before any wallpaper has ever been set, so fall back to the
+            // screen's own metrics in that case.
             val metrics = context.resources.displayMetrics
-            val reqWidth = metrics.widthPixels.coerceAtLeast(1080)
-            val reqHeight = metrics.heightPixels.coerceAtLeast(1920)
+            val fallbackWidth = metrics.widthPixels.coerceAtLeast(1080)
+            val fallbackHeight = metrics.heightPixels.coerceAtLeast(1920)
+            val reqWidth = wallpaperManager.desiredMinimumWidth.takeIf { it > 0 } ?: fallbackWidth
+            val reqHeight = wallpaperManager.desiredMinimumHeight.takeIf { it > 0 } ?: fallbackHeight
 
             val bitmap = decodeSampledBitmap(wallpaperFile, reqWidth, reqHeight)
                 ?: return@withContext Result.failure(IllegalArgumentException("Failed to decode image from ${wallpaperFile.name}"))
@@ -39,6 +45,7 @@ object WallpaperManagerHelper {
                 true,
                 target.flag,
             )
+            orientedBitmap.recycle()
 
             Result.success(Unit)
         } catch (e: Exception) {

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <!--
+      The imported wallpaper photo pool (filesDir/wallpapers/) can grow into the hundreds of MB.
+      Exclude it from cloud backup and device-to-device transfer so it doesn't silently consume
+      the user's backup quota or slow down restores; app settings (DataStore) are still backed up.
+    -->
+    <cloud-backup>
+        <exclude domain="file" path="wallpapers/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="wallpapers/" />
+    </device-transfer>
+</data-extraction-rules>

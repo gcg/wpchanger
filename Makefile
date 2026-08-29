@@ -1,8 +1,12 @@
 .DEFAULT_GOAL := help
-.PHONY: help open run build assemble build-release install test lint format check clean
+.PHONY: help open run run-device devices build assemble build-release install test lint format check clean
 
 # Ensure Android SDK platform-tools & emulator are in PATH
 export PATH := $(HOME)/Library/Android/sdk/platform-tools:$(HOME)/Library/Android/sdk/emulator:$(PATH)
+
+# Referenced by absolute path (not just via PATH) so device-targeting targets below are robust
+# even in shells where the PATH export above doesn't propagate to every subprocess.
+ADB := $(HOME)/Library/Android/sdk/platform-tools/adb
 
 PACKAGE_NAME := com.gcg.wpchanger
 ACTIVITY_NAME := $(PACKAGE_NAME)/.MainActivity
@@ -45,6 +49,28 @@ run: build ## Run app in connected device or launch emulator first
 	@./gradlew installDebug
 	@echo "Starting $(ACTIVITY_NAME)..."
 	@adb shell am start -n $(ACTIVITY_NAME)
+
+devices: ## List adb-visible devices/emulators with their state
+	@$(ADB) devices -l
+
+run-device: build ## Install and launch on a connected physical phone (never an emulator)
+	@echo "Looking for a connected physical Android device..."
+	@DEVICE=$$($(ADB) devices | tail -n +2 | grep -w "device" | grep -v "^emulator-" | head -n1 | cut -f1); \
+	if [ -z "$$DEVICE" ]; then \
+		echo "\033[1;31mNo physical device found via adb.\033[0m"; \
+		echo ""; \
+		echo "  1. Enable Developer Options on the phone (Settings > About phone > tap Build number 7x)"; \
+		echo "  2. Enable USB debugging (Settings > System > Developer options)"; \
+		echo "  3. Connect via USB cable, or 'adb pair'/'adb connect' for wireless debugging"; \
+		echo "  4. Accept the 'Allow USB debugging?' prompt on the phone"; \
+		echo "  5. Run 'make devices' to confirm it shows up as 'device' (not 'unauthorized')"; \
+		exit 1; \
+	fi; \
+	echo "Found device: $$DEVICE"; \
+	export ANDROID_SERIAL=$$DEVICE; \
+	./gradlew installDebug; \
+	echo "Starting $(ACTIVITY_NAME) on $$DEVICE..."; \
+	$(ADB) -s $$DEVICE shell am start -n $(ACTIVITY_NAME)
 
 build: ## Build debug APK
 	@./gradlew assembleDebug

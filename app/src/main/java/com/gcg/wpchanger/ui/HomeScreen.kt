@@ -1,5 +1,10 @@
 package com.gcg.wpchanger.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -59,6 +65,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +84,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -99,6 +109,22 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var previewItem by remember { mutableStateOf<WallpaperItem?>(null) }
+
+    val context = LocalContext.current
+    var isIgnoringBatteryOptimizations by remember {
+        mutableStateOf(isIgnoringBatteryOptimizations(context))
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // Re-check after returning from the system battery settings screen.
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { message ->
@@ -155,6 +181,21 @@ fun HomeScreen(
                 )
             }
 
+            // Battery optimization nudge (only relevant once rotation is actually turned on)
+            if (uiState.isActive && !isIgnoringBatteryOptimizations) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    BatteryOptimizationBanner(
+                        onRequestClick = {
+                            val intent = Intent(
+                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:${context.packageName}"),
+                            )
+                            context.startActivity(intent)
+                        },
+                    )
+                }
+            }
+
             // Timer Interval Options
             item(span = { GridItemSpan(maxLineSpan) }) {
                 TimerIntervalCard(
@@ -175,6 +216,7 @@ fun HomeScreen(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 WallpaperPoolHeader(
                     count = uiState.wallpapers.size,
+                    totalSizeBytes = uiState.wallpapers.sumOf { it.sizeBytes },
                     onPickPhotosClick = onPickPhotosClick,
                     onPickFolderClick = onPickFolderClick,
                     onClearAllClick = { showClearConfirmDialog = true },
@@ -557,8 +599,55 @@ private fun TargetScreenCard(
 }
 
 @Composable
+private fun BatteryOptimizationBanner(onRequestClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.BatteryAlert,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Improve rotation reliability",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Text(
+                    text = "Battery optimization can delay or skip scheduled wallpaper changes. Exempt this app for reliable background rotation.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            TextButton(onClick = onRequestClick) {
+                Text("Fix")
+            }
+        }
+    }
+}
+
+private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+@Composable
 private fun WallpaperPoolHeader(
     count: Int,
+    totalSizeBytes: Long,
     onPickPhotosClick: () -> Unit,
     onPickFolderClick: () -> Unit,
     onClearAllClick: () -> Unit,
@@ -608,6 +697,21 @@ private fun WallpaperPoolHeader(
                     Text("Clear All")
                 }
             }
+        }
+
+        if (count > 0) {
+            Spacer(modifier = Modifier.height(2.dp))
+            val isOverThreshold = totalSizeBytes > STORAGE_WARNING_THRESHOLD_BYTES
+            Text(
+                text = "${formatFileSize(totalSizeBytes)} used" +
+                    if (isOverThreshold) " • consider clearing photos you no longer need" else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isOverThreshold) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -812,6 +916,8 @@ private fun WallpaperCard(
         }
     }
 }
+
+private const val STORAGE_WARNING_THRESHOLD_BYTES = 500L * 1024 * 1024
 
 private fun formatDate(timestamp: Long): String {
     if (timestamp == 0L) return "Never"
