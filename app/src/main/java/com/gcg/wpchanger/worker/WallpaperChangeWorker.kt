@@ -25,7 +25,9 @@ class WallpaperChangeWorker(
         }
 
         val lastId = preferences.getLastWallpaperId()
-        val nextWallpaper = repository.pickNextRandomWallpaper(lastId)
+        val queue = preferences.getShuffleQueue()
+        val pick = repository.pickNextRandomWallpaper(lastId, queue)
+        val nextWallpaper = pick.item
             ?: return Result.success() // No wallpapers found in pool
 
         val target = preferences.getTarget()
@@ -42,6 +44,7 @@ class WallpaperChangeWorker(
                 name = nextWallpaper.name,
                 timestamp = System.currentTimeMillis(),
             )
+            preferences.setShuffleQueue(pick.queue)
             Result.success()
         } else {
             if (runAttemptCount < 2) {

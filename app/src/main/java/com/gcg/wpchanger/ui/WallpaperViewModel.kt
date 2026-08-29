@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gcg.wpchanger.data.ImportSummary
 import com.gcg.wpchanger.data.TimerInterval
 import com.gcg.wpchanger.data.WallpaperItem
 import com.gcg.wpchanger.data.WallpaperManagerHelper
@@ -109,27 +110,29 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
         if (uris.isEmpty()) return
         viewModelScope.launch {
             isLoadingFlow.value = true
-            val count = repository.importFromUris(uris)
+            val summary = repository.importFromUris(uris)
             isLoadingFlow.value = false
-            if (count > 0) {
-                userMessageFlow.value = "Added $count wallpaper${if (count > 1) "s" else ""} to pool"
-            } else {
-                userMessageFlow.value = "Could not import selected images"
-            }
+            userMessageFlow.value = buildImportMessage(summary)
         }
     }
 
     fun importFolder(treeUri: Uri) {
         viewModelScope.launch {
             isLoadingFlow.value = true
-            val count = repository.importFromFolder(treeUri)
+            val summary = repository.importFromFolder(treeUri)
             isLoadingFlow.value = false
-            if (count > 0) {
-                userMessageFlow.value = "Imported $count wallpaper${if (count > 1) "s" else ""} from folder"
-            } else {
-                userMessageFlow.value = "No images found in the selected folder"
-            }
+            userMessageFlow.value = buildImportMessage(summary, emptyMessage = "No images found in the selected folder")
         }
+    }
+
+    private fun buildImportMessage(summary: ImportSummary, emptyMessage: String = "Could not import selected images"): String {
+        if (summary.total == 0) return emptyMessage
+        val parts = mutableListOf<String>()
+        if (summary.saved > 0) parts += "Added ${summary.saved} wallpaper${if (summary.saved != 1) "s" else ""}"
+        if (summary.duplicates > 0) parts += "${summary.duplicates} duplicate${if (summary.duplicates != 1) "s" else ""} skipped"
+        if (summary.unsupported > 0) parts += "${summary.unsupported} unsupported file${if (summary.unsupported != 1) "s" else ""} skipped"
+        if (summary.failed > 0) parts += "${summary.failed} failed"
+        return if (parts.isEmpty()) emptyMessage else parts.joinToString(" • ")
     }
 
     fun deleteWallpaper(id: String) {
@@ -161,7 +164,9 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
 
             isLoadingFlow.value = true
             val lastId = preferences.getLastWallpaperId()
-            val next = repository.pickNextRandomWallpaper(lastId)
+            val queue = preferences.getShuffleQueue()
+            val pick = repository.pickNextRandomWallpaper(lastId, queue)
+            val next = pick.item
 
             if (next == null) {
                 isLoadingFlow.value = false
@@ -179,6 +184,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
             isLoadingFlow.value = false
             if (result.isSuccess) {
                 preferences.recordWallpaperChange(next.id, next.name)
+                preferences.setShuffleQueue(pick.queue)
                 userMessageFlow.value = "Applied: ${next.name}"
             } else {
                 userMessageFlow.value = "Failed to set wallpaper: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
