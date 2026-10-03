@@ -1,0 +1,29 @@
+Turn your own photos into a wallpaper that keeps changing.
+
+Pick a few favorite shots or a whole album, choose how often you want something new, and Wallpaper Changer takes care of the rest, quietly, in the background.
+
+<b>How it works</b>
+• Add photos with the system photo picker, or import an entire folder at once
+• Pick an interval: every 30 minutes, 1 hour, 3 hours, 6 hours, or once a day
+• Choose where it goes: home screen, lock screen, or both
+• Tap "Change Wallpaper Now" whenever you want a fresh look
+
+<b>Smart shuffle</b>
+Every photo in your pool gets its turn before any of them repeats, and you'll never see the same photo twice in a row.
+
+<b>Easy on your battery</b>
+Rotation uses Android's own job scheduler, pauses automatically in Battery Saver or when the battery is low, and picks up again on its own. Nothing runs in between changes.
+
+<b>Private by design</b>
+• No internet permission: your photos never leave your phone
+• No accounts, no ads, no analytics, no tracking
+• Photos are copied into the app's private storage, so rotation keeps working even if the originals move
+
+<b>Thoughtful details</b>
+• Duplicate photos are skipped automatically
+• Correct orientation for photos taken in portrait or landscape
+• Optional notification with a preview each time the wallpaper changes
+• Material You design that follows your wallpaper's colors, in light and dark mode
+• Keeps rotating after a restart
+
+Wallpaper Changer is open source: github.com/gcg/wpchanger

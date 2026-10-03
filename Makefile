@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help open run run-device devices build assemble build-release install test lint format check clean
+.PHONY: help open run run-device devices build assemble build-release bundle keystore install test lint format check clean
 
 # Ensure Android SDK platform-tools & emulator are in PATH
 export PATH := $(HOME)/Library/Android/sdk/platform-tools:$(HOME)/Library/Android/sdk/emulator:$(PATH)
@@ -79,6 +79,19 @@ assemble: build ## Alias for build
 
 build-release: ## Build release APK
 	@./gradlew assembleRelease
+
+bundle: ## Build the signed release App Bundle (.aab) for Google Play
+	@if [ ! -f keystore.properties ] && [ -z "$$WPCHANGER_STORE_FILE" ]; then \
+		echo "\033[1;31mNo signing config found.\033[0m Run 'make keystore', then copy keystore.properties.example to keystore.properties."; \
+		exit 1; \
+	fi
+	@./gradlew bundleRelease
+	@echo "\033[1;32mBundle ready:\033[0m app/build/outputs/bundle/release/app-release.aab"
+
+keystore: ## Generate a Play Store upload key (upload-keystore.jks, git-ignored)
+	@if [ -f upload-keystore.jks ]; then echo "upload-keystore.jks already exists - refusing to overwrite."; exit 1; fi
+	@keytool -genkeypair -v -keystore upload-keystore.jks -alias upload -keyalg RSA -keysize 4096 -validity 10000
+	@echo "\033[1;33mBack up upload-keystore.jks and its password somewhere safe (e.g. a password manager).\033[0m"
 
 install: ## Install debug APK to connected device/emulator
 	@./gradlew installDebug
