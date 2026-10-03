@@ -27,7 +27,7 @@ If only formatting or linting is needed:
 
 ## 2. Architecture & Design Principles
 
-- **Target SDK**: Android 15 (`targetSdk = 35`, `compileSdk = 35`).
+- **Target SDK**: Android 16 (`targetSdk = 36`, `compileSdk = 36`), the minimum Google Play accepts for new apps and updates since Aug 31, 2026.
 - **Minimum SDK**: Android 14 (`minSdk = 34`). Only the last 2 major Android releases are supported.
 - **UI Framework**: Modern Jetpack Compose with Material 3 and dynamic color theming.
   - Composable functions must be decorated with `@Composable`.
@@ -39,6 +39,10 @@ If only formatting or linting is needed:
 - **Storage & Permissions**:
   - Store user wallpaper photos inside app-private internal storage (`context.filesDir/wallpapers/`) to ensure background reliability without URI permission expiration.
   - Store application settings in AndroidX `DataStore<Preferences>`.
+- **Google Play**:
+  - Store listing text and graphics live in `fastlane/metadata/android/en-US/`; release steps are in `docs/PLAY_STORE.md`.
+  - Never commit `keystore.properties` or `*.jks` files.
+  - Don't add permissions Play restricts (e.g. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) or `INTERNET` without updating `PRIVACY.md` and the Data safety answers.
 - **Lean Dependencies**:
   - Keep dependencies lean and standard. Avoid introducing heavy third-party libraries when AndroidX Jetpack libraries suffice.
   - Manage all versions centrally in `gradle/libs.versions.toml`.
@@ -53,6 +57,8 @@ If only formatting or linting is needed:
 | `make run` | Starts the emulator (if none running), builds, installs, and launches the app |
 | `make build` | Builds the debug APK |
 | `make build-release` | Builds the release APK |
+| `make bundle` | Builds the signed release App Bundle (`.aab`) for Google Play |
+| `make keystore` | Generates the Play upload key (`upload-keystore.jks`, git-ignored) |
 | `make install` | Installs the debug APK onto the active device or emulator |
 | `make test` | Runs the unit test suite |
 | `make format` | Formats all source code with Spotless (ktlint) |

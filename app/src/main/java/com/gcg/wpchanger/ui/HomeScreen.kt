@@ -220,8 +220,10 @@ fun HomeScreen(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     BatteryOptimizationBanner(
                         onRequestClick = {
+                            // Opens App info rather than the direct exemption prompt: Play policy only
+                            // allows REQUEST_IGNORE_BATTERY_OPTIMIZATIONS for apps like VoIP or navigation.
                             val intent = Intent(
-                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                                 Uri.parse("package:${context.packageName}"),
                             )
                             context.startActivity(intent)
@@ -723,13 +725,13 @@ private fun BatteryOptimizationBanner(onRequestClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
                 Text(
-                    text = "Battery optimization can delay or skip scheduled wallpaper changes. Exempt this app for reliable background rotation.",
+                    text = "Battery optimization can delay or skip scheduled wallpaper changes. For on-time rotation, set this app's battery usage to Unrestricted in App info.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
             TextButton(onClick = onRequestClick) {
-                Text("Fix")
+                Text("Open")
             }
         }
     }

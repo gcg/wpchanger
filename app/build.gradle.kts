@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,14 +7,26 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
+// Upload-key credentials for Play Store builds. Read from the git-ignored keystore.properties
+// (see keystore.properties.example), falling back to environment variables for CI. When neither
+// is present, release builds are still produced but left unsigned.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(key: String, envVar: String): String? = keystoreProperties.getProperty(key) ?: System.getenv(envVar)
+
+val releaseStoreFile = signingValue("storeFile", "WPCHANGER_STORE_FILE")
+
 android {
     namespace = "com.gcg.wpchanger"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.gcg.wpchanger"
         minSdk = 34
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
@@ -22,8 +36,20 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = signingValue("storePassword", "WPCHANGER_STORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "WPCHANGER_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "WPCHANGER_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
