@@ -2,5 +2,6 @@ First release 🎉
 • Rotate your own photos as wallpaper every 30 min to once a day
 • Home screen, lock screen, or both
 • Import single photos or whole folders
+• Stacks: group photos (e.g. Landscapes, Friends) and pick which one rotates
 • Battery-friendly: pauses in Battery Saver and on low battery
 • Optional change notifications with preview
