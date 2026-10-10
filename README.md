@@ -33,6 +33,7 @@ With Material You, the app re-themes itself to match the wallpaper it just set:
 - 🖼️ **Photos or whole folders**: system photo picker, or import an entire album
 - ⏱️ **Intervals**: 30 min · 1 h · 3 h · 6 h · daily
 - 📱 **Targets**: home screen, lock screen, or both
+- 🗂️ **Stacks**: group photos (wallpapers, landscapes, friends…), rename them, and pick which one rotates
 - 🔀 **Shuffle bag**: every photo gets a turn before any repeats
 - 🔋 **Battery-friendly**: pauses in Battery Saver and on low battery, resumes on its own
 - 🔔 **Optional notification** with a preview of the new wallpaper

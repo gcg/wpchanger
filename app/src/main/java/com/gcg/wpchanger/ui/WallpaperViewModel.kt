@@ -5,11 +5,13 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gcg.wpchanger.data.ImportSummary
+import com.gcg.wpchanger.data.StackNames
 import com.gcg.wpchanger.data.TimerInterval
 import com.gcg.wpchanger.data.WallpaperItem
 import com.gcg.wpchanger.data.WallpaperManagerHelper
 import com.gcg.wpchanger.data.WallpaperPreferences
 import com.gcg.wpchanger.data.WallpaperRepository
+import com.gcg.wpchanger.data.WallpaperStack
 import com.gcg.wpchanger.data.WallpaperTarget
 import com.gcg.wpchanger.worker.WorkManagerScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,8 @@ data class WallpaperUiState(
     val isLoading: Boolean = false,
     val userMessage: String? = null,
     val notifyOnChange: Boolean = false,
+    val stacks: List<WallpaperStack> = emptyList(),
+    val activeStack: String = "",
 )
 
 class WallpaperViewModel(application: Application) : AndroidViewModel(application) {
@@ -43,9 +47,10 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
     val uiState: StateFlow<WallpaperUiState> = combine(
         preferences.settingsFlow,
         repository.wallpapers,
+        repository.stacks,
         isLoadingFlow,
         userMessageFlow,
-    ) { settings, wallpapers, isLoading, message ->
+    ) { settings, wallpapers, stacks, isLoading, message ->
         WallpaperUiState(
             isActive = settings.isActive,
             interval = settings.interval,
@@ -57,6 +62,8 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
             isLoading = isLoading,
             userMessage = message,
             notifyOnChange = settings.notifyOnChange,
+            stacks = stacks,
+            activeStack = settings.activeStack,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -66,7 +73,62 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         viewModelScope.launch {
-            repository.refresh()
+            repository.refresh(activeStack())
+        }
+    }
+
+    /** The stack that's shown and rotated; falls back to (and persists) another one if it's gone. */
+    private suspend fun activeStack(): String {
+        val saved = preferences.getActiveStack()
+        val stack = repository.resolveStack(saved)
+        if (stack != saved) preferences.setActiveStack(stack)
+        return stack
+    }
+
+    fun selectStack(name: String) {
+        viewModelScope.launch {
+            preferences.setActiveStack(name)
+            repository.refresh(activeStack())
+        }
+    }
+
+    fun createStack(name: String) {
+        viewModelScope.launch {
+            val trimmed = name.trim()
+            if (StackNames.validate(trimmed, repository.stacks.value.map { it.name }) != null) return@launch
+            if (repository.createStack(trimmed)) {
+                preferences.setActiveStack(trimmed)
+                repository.refresh(trimmed)
+                userMessageFlow.value = "Created \"$trimmed\""
+            } else {
+                userMessageFlow.value = "Could not create stack"
+            }
+        }
+    }
+
+    fun renameActiveStack(newName: String) {
+        viewModelScope.launch {
+            val old = activeStack()
+            val trimmed = newName.trim()
+            val others = repository.stacks.value.map { it.name } - old
+            if (StackNames.validate(trimmed, others) != null) return@launch
+            if (repository.renameStack(old, trimmed)) {
+                preferences.setActiveStack(trimmed)
+                repository.refresh(trimmed)
+                userMessageFlow.value = "Renamed to \"$trimmed\""
+            } else {
+                userMessageFlow.value = "Could not rename stack"
+            }
+        }
+    }
+
+    fun deleteActiveStack() {
+        viewModelScope.launch {
+            if (repository.stacks.value.size <= 1) return@launch
+            val old = activeStack()
+            repository.deleteStack(old)
+            repository.refresh(activeStack())
+            userMessageFlow.value = "Deleted \"$old\""
         }
     }
 
@@ -74,7 +136,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val wallpapers = repository.wallpapers.value
             if (enabled && wallpapers.isEmpty()) {
-                userMessageFlow.value = "Please select some wallpapers before enabling auto-rotation."
+                userMessageFlow.value = "Add some wallpapers to this stack before enabling auto-rotation."
                 return@launch
             }
 
@@ -123,7 +185,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
         if (uris.isEmpty()) return
         viewModelScope.launch {
             isLoadingFlow.value = true
-            val summary = repository.importFromUris(uris)
+            val summary = repository.importFromUris(activeStack(), uris)
             isLoadingFlow.value = false
             userMessageFlow.value = buildImportMessage(summary)
         }
@@ -132,7 +194,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
     fun importFolder(treeUri: Uri) {
         viewModelScope.launch {
             isLoadingFlow.value = true
-            val summary = repository.importFromFolder(treeUri)
+            val summary = repository.importFromFolder(activeStack(), treeUri)
             isLoadingFlow.value = false
             userMessageFlow.value = buildImportMessage(summary, emptyMessage = "No images found in the selected folder")
         }
@@ -150,7 +212,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun deleteWallpaper(id: String) {
         viewModelScope.launch {
-            val success = repository.deleteWallpaper(id)
+            val success = repository.deleteWallpaper(activeStack(), id)
             if (success) {
                 userMessageFlow.value = "Wallpaper removed"
             }
@@ -159,7 +221,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun clearAllWallpapers() {
         viewModelScope.launch {
-            val count = repository.clearAllWallpapers()
+            val count = repository.clearAllWallpapers(activeStack())
             if (preferences.getActive()) {
                 toggleActive(false)
             }
@@ -171,14 +233,14 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val wallpapers = repository.wallpapers.value
             if (wallpapers.isEmpty()) {
-                userMessageFlow.value = "No wallpapers in pool to apply"
+                userMessageFlow.value = "This stack has no wallpapers to apply"
                 return@launch
             }
 
             isLoadingFlow.value = true
             val lastId = preferences.getLastWallpaperId()
             val queue = preferences.getShuffleQueue()
-            val pick = repository.pickNextRandomWallpaper(lastId, queue)
+            val pick = repository.pickNextRandomWallpaper(activeStack(), lastId, queue)
             val next = pick.item
 
             if (next == null) {

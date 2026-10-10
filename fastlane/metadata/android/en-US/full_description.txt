@@ -5,6 +5,7 @@ Pick a few favorite shots or a whole album, choose how often you want something 
 <b>How it works</b>
 • Add photos with the system photo picker, or import an entire folder at once
 • Pick an interval: every 30 minutes, 1 hour, 3 hours, 6 hours, or once a day
+• Organize photos into stacks like Landscapes or Friends, and switch which one rotates
 • Choose where it goes: home screen, lock screen, or both
 • Tap "Change Wallpaper Now" whenever you want a fresh look
 

@@ -36,7 +36,8 @@ data class ShufflePickResult(val item: WallpaperItem?, val queue: List<String>)
 
 class WallpaperRepository(private val context: Context) {
 
-    private val wallpaperDir: File by lazy {
+    // Each subfolder is a stack (see WallpaperStack); photos live inside their stack's folder.
+    private val rootDir: File by lazy {
         File(context.filesDir, "wallpapers").apply {
             if (!exists()) {
                 mkdirs()
@@ -44,20 +45,73 @@ class WallpaperRepository(private val context: Context) {
         }
     }
 
+    private fun stackDir(stack: String): File = File(rootDir, stack).apply { mkdirs() }
+
     private val _wallpapers = MutableStateFlow<List<WallpaperItem>>(emptyList())
     val wallpapers: StateFlow<List<WallpaperItem>> = _wallpapers.asStateFlow()
 
-    // Cache of (file size -> content hashes) for cheap duplicate detection across imports.
-    // Invalidated whenever the on-disk contents change outside of a single import batch.
-    private var hashIndexCache: MutableMap<Long, MutableSet<String>>? = null
+    private val _stacks = MutableStateFlow<List<WallpaperStack>>(emptyList())
+    val stacks: StateFlow<List<WallpaperStack>> = _stacks.asStateFlow()
 
-    suspend fun refresh() = withContext(Dispatchers.IO) {
-        val items = loadWallpaperItems()
-        _wallpapers.value = items
+    // Per-stack cache of (file size -> content hashes) for cheap duplicate detection across imports.
+    // Duplicates are only checked within a stack: the same photo may belong to several stacks.
+    // Invalidated whenever the on-disk contents change outside of a single import batch.
+    private val hashIndexCache = mutableMapOf<String, MutableMap<Long, MutableSet<String>>>()
+
+    /** Reloads the stack list and the photos of [stack] (the one shown in the UI). */
+    suspend fun refresh(stack: String) = withContext(Dispatchers.IO) {
+        _stacks.value = loadStacks()
+        _wallpapers.value = loadWallpaperItems(stack)
     }
 
-    private fun loadWallpaperItems(): List<WallpaperItem> {
-        val files = wallpaperDir.listFiles() ?: return emptyList()
+    private fun stackNames(): List<String> =
+        rootDir.listFiles()
+            ?.filter { it.isDirectory }
+            ?.map { it.name }
+            ?.sortedWith(String.CASE_INSENSITIVE_ORDER)
+            ?: emptyList()
+
+    private fun loadStacks(): List<WallpaperStack> = stackNames().map { name ->
+        WallpaperStack(name, File(rootDir, name).listFiles()?.count { it.isFile && isImageFile(it.name) } ?: 0)
+    }
+
+    /**
+     * Returns [preferred] if that stack exists, otherwise the first stack, creating a default one
+     * if there are none. Also moves photos imported before stacks existed (loose files directly in
+     * `wallpapers/`) into the default stack, keeping their ids so the shuffle queue stays valid.
+     */
+    suspend fun resolveStack(preferred: String): String = withContext(Dispatchers.IO) {
+        val looseFiles = rootDir.listFiles()?.filter { it.isFile } ?: emptyList()
+        if (looseFiles.isNotEmpty()) {
+            val target = stackDir(stackNames().firstOrNull() ?: StackNames.DEFAULT)
+            looseFiles.forEach { it.renameTo(File(target, it.name)) }
+        }
+        val names = stackNames()
+        when {
+            preferred in names -> preferred
+            names.isNotEmpty() -> names.first()
+            else -> StackNames.DEFAULT.also { stackDir(it) }
+        }
+    }
+
+    suspend fun createStack(name: String): Boolean = withContext(Dispatchers.IO) {
+        File(rootDir, name).mkdir()
+    }
+
+    suspend fun renameStack(oldName: String, newName: String): Boolean = withContext(Dispatchers.IO) {
+        val renamed = File(rootDir, oldName).renameTo(File(rootDir, newName))
+        if (renamed) hashIndexCache.remove(oldName)?.let { hashIndexCache[newName] = it }
+        renamed
+    }
+
+    /** Deletes [name] and every photo in it. */
+    suspend fun deleteStack(name: String): Boolean = withContext(Dispatchers.IO) {
+        hashIndexCache.remove(name)
+        File(rootDir, name).deleteRecursively()
+    }
+
+    private fun loadWallpaperItems(stack: String): List<WallpaperItem> {
+        val files = stackDir(stack).listFiles() ?: return emptyList()
         return files
             .filter { it.isFile && isImageFile(it.name) }
             .map { file ->
@@ -74,22 +128,22 @@ class WallpaperRepository(private val context: Context) {
             .sortedByDescending { it.addedTimestamp }
     }
 
-    suspend fun importFromUris(uris: List<Uri>): ImportSummary = withContext(Dispatchers.IO) {
-        val hashIndex = ensureHashIndex()
+    suspend fun importFromUris(stack: String, uris: List<Uri>): ImportSummary = withContext(Dispatchers.IO) {
+        val hashIndex = ensureHashIndex(stack)
         var summary = ImportSummary()
         for (uri in uris) {
-            summary = summary.plus(saveUriToFile(uri, hashIndex = hashIndex))
+            summary = summary.plus(saveUriToFile(stackDir(stack), uri, hashIndex = hashIndex))
         }
         if (summary.saved > 0) {
-            refresh()
+            refresh(stack)
         }
         summary
     }
 
-    suspend fun importFromFolder(treeUri: Uri): ImportSummary = withContext(Dispatchers.IO) {
+    suspend fun importFromFolder(stack: String, treeUri: Uri): ImportSummary = withContext(Dispatchers.IO) {
         var summary = ImportSummary()
         try {
-            val hashIndex = ensureHashIndex()
+            val hashIndex = ensureHashIndex(stack)
             val contentResolver = context.contentResolver
             val treeDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
             val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
@@ -123,7 +177,7 @@ class WallpaperRepository(private val context: Context) {
 
                     if (mimeType != null && (mimeType.startsWith("image/") || isImageFile(displayName))) {
                         val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                        summary = summary.plus(saveUriToFile(documentUri, displayName, hashIndex))
+                        summary = summary.plus(saveUriToFile(stackDir(stack), documentUri, displayName, hashIndex))
                     }
                 }
             }
@@ -132,7 +186,7 @@ class WallpaperRepository(private val context: Context) {
         }
 
         if (summary.saved > 0) {
-            refresh()
+            refresh(stack)
         }
         summary
     }
@@ -145,6 +199,7 @@ class WallpaperRepository(private val context: Context) {
     }
 
     private fun saveUriToFile(
+        dir: File,
         uri: Uri,
         preferredName: String? = null,
         hashIndex: MutableMap<Long, MutableSet<String>>,
@@ -159,7 +214,7 @@ class WallpaperRepository(private val context: Context) {
         val uniqueId = "wp_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}"
         val sanitizedName = originalName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
         val targetFileName = "${uniqueId}__$sanitizedName.$extension"
-        val targetFile = File(wallpaperDir, targetFileName)
+        val targetFile = File(dir, targetFileName)
 
         return try {
             resolver.openInputStream(uri)?.use { input ->
@@ -189,27 +244,27 @@ class WallpaperRepository(private val context: Context) {
         }
     }
 
-    suspend fun deleteWallpaper(id: String): Boolean = withContext(Dispatchers.IO) {
-        val files = wallpaperDir.listFiles() ?: return@withContext false
+    suspend fun deleteWallpaper(stack: String, id: String): Boolean = withContext(Dispatchers.IO) {
+        val files = stackDir(stack).listFiles() ?: return@withContext false
         val fileToDelete = files.find { it.nameWithoutExtension == id }
         val deleted = fileToDelete?.delete() ?: false
         if (deleted) {
-            invalidateHashIndex()
-            refresh()
+            hashIndexCache.remove(stack)
+            refresh(stack)
         }
         deleted
     }
 
-    suspend fun clearAllWallpapers(): Int = withContext(Dispatchers.IO) {
-        val files = wallpaperDir.listFiles() ?: return@withContext 0
+    suspend fun clearAllWallpapers(stack: String): Int = withContext(Dispatchers.IO) {
+        val files = stackDir(stack).listFiles() ?: return@withContext 0
         var deletedCount = 0
         for (f in files) {
             if (f.isFile && f.delete()) {
                 deletedCount++
             }
         }
-        invalidateHashIndex()
-        refresh()
+        hashIndexCache.remove(stack)
+        refresh(stack)
         deletedCount
     }
 
@@ -218,9 +273,9 @@ class WallpaperRepository(private val context: Context) {
      * any of them repeat, instead of a fresh independent random pick each time (which can favor
      * the same handful of photos while starving the rest of the pool).
      */
-    suspend fun pickNextRandomWallpaper(lastId: String?, queue: List<String>): ShufflePickResult =
+    suspend fun pickNextRandomWallpaper(stack: String, lastId: String?, queue: List<String>): ShufflePickResult =
         withContext(Dispatchers.IO) {
-            val currentList = loadWallpaperItems()
+            val currentList = loadWallpaperItems(stack)
             if (currentList.isEmpty()) return@withContext ShufflePickResult(null, emptyList())
 
             val poolIds = currentList.map { it.id }
@@ -229,16 +284,12 @@ class WallpaperRepository(private val context: Context) {
             ShufflePickResult(item, pick.remainingQueue)
         }
 
-    private fun ensureHashIndex(): MutableMap<Long, MutableSet<String>> =
-        hashIndexCache ?: buildHashIndex().also { hashIndexCache = it }
+    private fun ensureHashIndex(stack: String): MutableMap<Long, MutableSet<String>> =
+        hashIndexCache.getOrPut(stack) { buildHashIndex(stackDir(stack)) }
 
-    private fun invalidateHashIndex() {
-        hashIndexCache = null
-    }
-
-    private fun buildHashIndex(): MutableMap<Long, MutableSet<String>> {
+    private fun buildHashIndex(dir: File): MutableMap<Long, MutableSet<String>> {
         val index = mutableMapOf<Long, MutableSet<String>>()
-        val files = wallpaperDir.listFiles() ?: return index
+        val files = dir.listFiles() ?: return index
         for (file in files) {
             if (file.isFile) {
                 index.getOrPut(file.length()) { mutableSetOf() }.add(hashFile(file))
