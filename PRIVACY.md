@@ -31,7 +31,7 @@ If Android backup is turned on, Android may include the app's **settings** in yo
 
 ## Deleting your data
 
-Remove photos in the app (individually or with **Clear All**), or uninstall the app to delete everything it stored.
+Remove photos in the app (individually, with **Clear All**, or by deleting a stack), or uninstall the app to delete everything it stored.
 
 ## Children
 

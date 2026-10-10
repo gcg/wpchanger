@@ -35,23 +35,28 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -60,6 +65,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -82,6 +88,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -97,8 +104,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.gcg.wpchanger.data.StackNames
 import com.gcg.wpchanger.data.TimerInterval
 import com.gcg.wpchanger.data.WallpaperItem
+import com.gcg.wpchanger.data.WallpaperStack
 import com.gcg.wpchanger.data.WallpaperTarget
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -115,8 +124,8 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showClearConfirmDialog by remember { mutableStateOf(false) }
     var previewItem by remember { mutableStateOf<WallpaperItem?>(null) }
+    var dialog by remember { mutableStateOf<HomeDialog?>(null) }
 
     val context = LocalContext.current
     var isIgnoringBatteryOptimizations by remember {
@@ -256,14 +265,27 @@ fun HomeScreen(
                 )
             }
 
+            // Stack switcher, sitting right above the photos of the selected stack
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                StacksCard(
+                    stacks = uiState.stacks,
+                    activeStack = uiState.activeStack,
+                    onStackSelected = { viewModel.selectStack(it) },
+                    onNewStackClick = { dialog = HomeDialog.NEW },
+                    onRenameClick = { dialog = HomeDialog.RENAME },
+                    onDeleteClick = { dialog = HomeDialog.DELETE },
+                )
+            }
+
             // Wallpaper Pool Header & Action Buttons
             item(span = { GridItemSpan(maxLineSpan) }) {
                 WallpaperPoolHeader(
+                    title = uiState.activeStack.ifEmpty { "Wallpaper Pool" },
                     count = uiState.wallpapers.size,
                     totalSizeBytes = uiState.wallpapers.sumOf { it.sizeBytes },
                     onPickPhotosClick = onPickPhotosClick,
                     onPickFolderClick = onPickFolderClick,
-                    onClearAllClick = { showClearConfirmDialog = true },
+                    onClearAllClick = { dialog = HomeDialog.CLEAR },
                 )
             }
 
@@ -291,30 +313,40 @@ fun HomeScreen(
         }
     }
 
-    if (showClearConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearConfirmDialog = false },
-            title = { Text("Clear All Wallpapers?") },
-            text = { Text("This will remove all wallpapers from the pool. You will need to select new photos.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.clearAllWallpapers()
-                        showClearConfirmDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text("Clear All")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            },
+    val stackNames = uiState.stacks.map { it.name }
+    when (dialog) {
+        HomeDialog.CLEAR -> ConfirmDialog(
+            title = "Clear All Wallpapers?",
+            text = "This will remove all wallpapers from \"${uiState.activeStack}\". You will need to select new photos.",
+            confirmLabel = "Clear All",
+            onConfirm = { viewModel.clearAllWallpapers() },
+            onDismiss = { dialog = null },
         )
+        HomeDialog.NEW -> StackNameDialog(
+            title = "New Stack",
+            initialName = "",
+            existingNames = stackNames,
+            confirmLabel = "Create",
+            onConfirm = { viewModel.createStack(it) },
+            onDismiss = { dialog = null },
+        )
+        HomeDialog.RENAME -> StackNameDialog(
+            title = "Rename Stack",
+            initialName = uiState.activeStack,
+            existingNames = stackNames - uiState.activeStack,
+            confirmLabel = "Rename",
+            onConfirm = { viewModel.renameActiveStack(it) },
+            onDismiss = { dialog = null },
+        )
+        HomeDialog.DELETE -> ConfirmDialog(
+            title = "Delete \"${uiState.activeStack}\"?",
+            text = "This removes the stack and its ${uiState.wallpapers.size} photo(s) from the app. " +
+                "The originals in your gallery aren't affected.",
+            confirmLabel = "Delete",
+            onConfirm = { viewModel.deleteActiveStack() },
+            onDismiss = { dialog = null },
+        )
+        null -> Unit
     }
 
     // Full screen image preview dialog
@@ -364,19 +396,45 @@ fun HomeScreen(
                             )
                             .padding(16.dp),
                     ) {
-                        Column {
-                            Text(
-                                text = item.name,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "${formatFileSize(item.sizeBytes)} • Added ${formatDate(item.addedTimestamp)}",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "${formatFileSize(item.sizeBytes)} • Added ${formatDate(item.addedTimestamp)}",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            val otherStacks = uiState.stacks.map { it.name } - uiState.activeStack
+                            if (otherStacks.isNotEmpty()) {
+                                Box {
+                                    var showMoveMenu by remember { mutableStateOf(false) }
+                                    IconButton(onClick = { showMoveMenu = true }) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                                            contentDescription = "Move to another stack",
+                                            tint = Color.White,
+                                        )
+                                    }
+                                    DropdownMenu(expanded = showMoveMenu, onDismissRequest = { showMoveMenu = false }) {
+                                        otherStacks.forEach { stack ->
+                                            DropdownMenuItem(
+                                                text = { Text("Move to $stack") },
+                                                onClick = {
+                                                    viewModel.moveWallpaper(item.id, stack)
+                                                    previewItem = null
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -448,7 +506,7 @@ private fun HeroControlCard(
                     )
                     Text(
                         text = if (uiState.isActive) {
-                            "Rotates every ${uiState.interval.label.lowercase()} • ${uiState.target.label}"
+                            "Rotates every ${uiState.interval.label.lowercase()} • ${uiState.target.label} • ${uiState.activeStack}"
                         } else {
                             "Paused. Toggle switch to start rotation."
                         },
@@ -476,48 +534,34 @@ private fun HeroControlCard(
 
             if (uiState.lastChangedTimestamp > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Schedule,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                StatusHint(
+                    icon = Icons.Default.Schedule,
+                    text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (uiState.isActive && (isBatterySaverOn || isBatteryLow)) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BatteryAlert,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.tertiary,
-                    )
-                    Text(
-                        text = if (isBatterySaverOn) {
-                            "Paused while Battery Saver is on"
-                        } else {
-                            "Paused while battery is low"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                }
+                StatusHint(
+                    icon = Icons.Default.BatteryAlert,
+                    text = if (isBatterySaverOn) {
+                        "Paused while Battery Saver is on"
+                    } else {
+                        "Paused while battery is low"
+                    },
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+
+            // Switching to (or creating) an empty stack doesn't pause rotation, so say why nothing changes.
+            if (uiState.isActive && uiState.stacks.isNotEmpty() && uiState.wallpapers.isEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                StatusHint(
+                    icon = Icons.Default.PhotoLibrary,
+                    text = "\"${uiState.activeStack}\" is empty. Add photos or pick another stack.",
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -590,21 +634,10 @@ private fun TimerIntervalCard(
             ) {
                 TimerInterval.entries.forEach { interval ->
                     val isSelected = interval == selectedInterval
-                    FilterChip(
+                    CheckFilterChip(
                         selected = isSelected,
                         onClick = { onIntervalSelected(interval) },
-                        label = { Text(interval.label) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        label = interval.label,
                     )
                 }
             }
@@ -674,21 +707,10 @@ private fun TargetScreenCard(
             ) {
                 WallpaperTarget.entries.forEach { target ->
                     val isSelected = target == selectedTarget
-                    FilterChip(
+                    CheckFilterChip(
                         selected = isSelected,
                         onClick = { onTargetSelected(target) },
-                        label = { Text(target.label) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        label = target.label,
                     )
                 }
             }
@@ -760,8 +782,129 @@ private fun isBatteryLow(context: Context): Boolean {
 
 private const val LOW_BATTERY_THRESHOLD_PERCENT = 15
 
+private enum class HomeDialog { CLEAR, NEW, RENAME, DELETE }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StacksCard(
+    stacks: List<WallpaperStack>,
+    activeStack: String,
+    onStackSelected: (String) -> Unit,
+    onNewStackClick: () -> Unit,
+    onRenameClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Stacks",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Rotation uses photos from the selected stack",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onRenameClick) {
+                    Icon(imageVector = Icons.Default.Edit, contentDescription = "Rename stack")
+                }
+                IconButton(onClick = onDeleteClick, enabled = stacks.size > 1) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete stack")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                stacks.forEach { stack ->
+                    val isSelected = stack.name == activeStack
+                    CheckFilterChip(
+                        selected = isSelected,
+                        onClick = { onStackSelected(stack.name) },
+                        label = "${stack.name} · ${stack.count}",
+                    )
+                }
+                AssistChip(
+                    onClick = onNewStackClick,
+                    label = { Text("New") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StackNameDialog(
+    title: String,
+    initialName: String,
+    existingNames: List<String>,
+    confirmLabel: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    // Don't nag about an empty name before the user has typed anything.
+    val error = StackNames.validate(name, existingNames).takeIf { name.isNotEmpty() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true,
+                isError = error != null,
+                supportingText = error?.let { { Text(it) } },
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(name)
+                    onDismiss()
+                },
+                enabled = name.isNotEmpty() && error == null && name.trim() != initialName,
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
 @Composable
 private fun WallpaperPoolHeader(
+    title: String,
     count: Int,
     totalSizeBytes: Long,
     onPickPhotosClick: () -> Unit,
@@ -779,9 +922,11 @@ private fun WallpaperPoolHeader(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = "Wallpaper Pool",
+                    text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Surface(
                     shape = CircleShape,
@@ -898,7 +1043,7 @@ private fun EmptyWallpaperPool(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "No Wallpapers Selected",
+                text = "This Stack Is Empty",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -1047,4 +1192,80 @@ private fun formatFileSize(size: Long): String {
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
     val formatted = String.format(Locale.getDefault(), "%.1f", size / Math.pow(1024.0, digitGroups.toDouble()))
     return "$formatted ${units[digitGroups]}"
+}
+
+/** A small icon + caption line, used for the status notes under the hero card's title. */
+@Composable
+private fun StatusHint(icon: ImageVector, text: String, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = color,
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = color,
+        )
+    }
+}
+
+/** A [FilterChip] that shows a check mark while selected. */
+@Composable
+private fun CheckFilterChip(selected: Boolean, onClick: () -> Unit, label: String) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            }
+        } else {
+            null
+        },
+    )
+}
+
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
