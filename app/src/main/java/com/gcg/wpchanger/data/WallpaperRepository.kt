@@ -77,7 +77,7 @@ class WallpaperRepository(private val context: Context) {
             ?: emptyList()
 
     private fun loadStacks(): List<WallpaperStack> = stackNames().map { name ->
-        WallpaperStack(name, File(rootDir, name).listFiles()?.count { it.isFile && isImageFile(it.name) } ?: 0)
+        WallpaperStack(name, stackDir(name).listFiles()?.count { it.isFile && isImageFile(it.name) } ?: 0)
     }
 
     /**
@@ -100,11 +100,11 @@ class WallpaperRepository(private val context: Context) {
     }
 
     suspend fun createStack(name: String): Boolean = withContext(Dispatchers.IO) {
-        File(rootDir, name).mkdir()
+        stackDir(name).mkdir()
     }
 
     suspend fun renameStack(oldName: String, newName: String): Boolean = withContext(Dispatchers.IO) {
-        val renamed = File(rootDir, oldName).renameTo(File(rootDir, newName))
+        val renamed = stackDir(oldName).renameTo(stackDir(newName))
         if (renamed) hashIndexCache.remove(oldName)?.let { hashIndexCache[newName] = it }
         renamed
     }
@@ -112,7 +112,7 @@ class WallpaperRepository(private val context: Context) {
     /** Deletes [name] and every photo in it. */
     suspend fun deleteStack(name: String): Boolean = withContext(Dispatchers.IO) {
         hashIndexCache.remove(name)
-        File(rootDir, name).deleteRecursively()
+        stackDir(name).deleteRecursively()
     }
 
     private fun loadWallpaperItems(stack: String): List<WallpaperItem> {

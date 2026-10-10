@@ -311,28 +311,12 @@ fun HomeScreen(
     }
 
     if (showClearConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearConfirmDialog = false },
-            title = { Text("Clear All Wallpapers?") },
-            text = { Text("This will remove all wallpapers from \"${uiState.activeStack}\". You will need to select new photos.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.clearAllWallpapers()
-                        showClearConfirmDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text("Clear All")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            },
+        ConfirmDialog(
+            title = "Clear All Wallpapers?",
+            text = "This will remove all wallpapers from \"${uiState.activeStack}\". You will need to select new photos.",
+            confirmLabel = "Clear All",
+            onConfirm = { viewModel.clearAllWallpapers() },
+            onDismiss = { showClearConfirmDialog = false },
         )
     }
 
@@ -354,33 +338,13 @@ fun HomeScreen(
             onConfirm = { viewModel.renameActiveStack(it) },
             onDismiss = { stackDialog = null },
         )
-        StackDialog.DELETE -> AlertDialog(
-            onDismissRequest = { stackDialog = null },
-            title = { Text("Delete \"${uiState.activeStack}\"?") },
-            text = {
-                Text(
-                    "This removes the stack and its ${uiState.wallpapers.size} photo(s) from the app. " +
-                        "The originals in your gallery aren't affected.",
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteActiveStack()
-                        stackDialog = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { stackDialog = null }) {
-                    Text("Cancel")
-                }
-            },
+        StackDialog.DELETE -> ConfirmDialog(
+            title = "Delete \"${uiState.activeStack}\"?",
+            text = "This removes the stack and its ${uiState.wallpapers.size} photo(s) from the app. " +
+                "The originals in your gallery aren't affected.",
+            confirmLabel = "Delete",
+            onConfirm = { viewModel.deleteActiveStack() },
+            onDismiss = { stackDialog = null },
         )
         null -> Unit
     }
@@ -680,21 +644,10 @@ private fun TimerIntervalCard(
             ) {
                 TimerInterval.entries.forEach { interval ->
                     val isSelected = interval == selectedInterval
-                    FilterChip(
+                    CheckFilterChip(
                         selected = isSelected,
                         onClick = { onIntervalSelected(interval) },
-                        label = { Text(interval.label) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        label = interval.label,
                     )
                 }
             }
@@ -764,21 +717,10 @@ private fun TargetScreenCard(
             ) {
                 WallpaperTarget.entries.forEach { target ->
                     val isSelected = target == selectedTarget
-                    FilterChip(
+                    CheckFilterChip(
                         selected = isSelected,
                         onClick = { onTargetSelected(target) },
-                        label = { Text(target.label) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        label = target.label,
                     )
                 }
             }
@@ -904,21 +846,10 @@ private fun StacksCard(
             ) {
                 stacks.forEach { stack ->
                     val isSelected = stack.name == activeStack
-                    FilterChip(
+                    CheckFilterChip(
                         selected = isSelected,
                         onClick = { onStackSelected(stack.name) },
-                        label = { Text("${stack.name} · ${stack.count}") },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        label = "${stack.name} · ${stack.count}",
                     )
                 }
                 AssistChip(
@@ -1274,4 +1205,58 @@ private fun formatFileSize(size: Long): String {
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
     val formatted = String.format(Locale.getDefault(), "%.1f", size / Math.pow(1024.0, digitGroups.toDouble()))
     return "$formatted ${units[digitGroups]}"
+}
+
+/** A [FilterChip] that shows a check mark while selected. */
+@Composable
+private fun CheckFilterChip(selected: Boolean, onClick: () -> Unit, label: String) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (selected) {
+            {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            }
+        } else {
+            null
+        },
+    )
+}
+
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
