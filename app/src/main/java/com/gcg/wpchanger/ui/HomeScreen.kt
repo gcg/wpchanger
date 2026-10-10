@@ -505,7 +505,11 @@ private fun HeroControlCard(
 
             if (uiState.lastChangedTimestamp > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
-                StatusHint(icon = Icons.Default.Schedule, text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                StatusHint(
+                    icon = Icons.Default.Schedule,
+                    text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (uiState.isActive && (isBatterySaverOn || isBatteryLow)) {
@@ -524,7 +528,11 @@ private fun HeroControlCard(
             // Switching to (or creating) an empty stack doesn't pause rotation, so say why nothing changes.
             if (uiState.isActive && uiState.wallpapers.isEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                StatusHint(icon = Icons.Default.PhotoLibrary, text = "\"${uiState.activeStack}\" is empty. Add photos or pick another stack.", color = MaterialTheme.colorScheme.error)
+                StatusHint(
+                    icon = Icons.Default.PhotoLibrary,
+                    text = "\"${uiState.activeStack}\" is empty. Add photos or pick another stack.",
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
