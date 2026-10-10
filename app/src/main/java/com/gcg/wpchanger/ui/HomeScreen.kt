@@ -85,6 +85,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -120,9 +121,8 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showClearConfirmDialog by remember { mutableStateOf(false) }
     var previewItem by remember { mutableStateOf<WallpaperItem?>(null) }
-    var stackDialog by remember { mutableStateOf<StackDialog?>(null) }
+    var dialog by remember { mutableStateOf<HomeDialog?>(null) }
 
     val context = LocalContext.current
     var isIgnoringBatteryOptimizations by remember {
@@ -268,9 +268,9 @@ fun HomeScreen(
                     stacks = uiState.stacks,
                     activeStack = uiState.activeStack,
                     onStackSelected = { viewModel.selectStack(it) },
-                    onNewStackClick = { stackDialog = StackDialog.NEW },
-                    onRenameClick = { stackDialog = StackDialog.RENAME },
-                    onDeleteClick = { stackDialog = StackDialog.DELETE },
+                    onNewStackClick = { dialog = HomeDialog.NEW },
+                    onRenameClick = { dialog = HomeDialog.RENAME },
+                    onDeleteClick = { dialog = HomeDialog.DELETE },
                 )
             }
 
@@ -282,7 +282,7 @@ fun HomeScreen(
                     totalSizeBytes = uiState.wallpapers.sumOf { it.sizeBytes },
                     onPickPhotosClick = onPickPhotosClick,
                     onPickFolderClick = onPickFolderClick,
-                    onClearAllClick = { showClearConfirmDialog = true },
+                    onClearAllClick = { dialog = HomeDialog.CLEAR },
                 )
             }
 
@@ -310,41 +310,38 @@ fun HomeScreen(
         }
     }
 
-    if (showClearConfirmDialog) {
-        ConfirmDialog(
+    val stackNames = uiState.stacks.map { it.name }
+    when (dialog) {
+        HomeDialog.CLEAR -> ConfirmDialog(
             title = "Clear All Wallpapers?",
             text = "This will remove all wallpapers from \"${uiState.activeStack}\". You will need to select new photos.",
             confirmLabel = "Clear All",
             onConfirm = { viewModel.clearAllWallpapers() },
-            onDismiss = { showClearConfirmDialog = false },
+            onDismiss = { dialog = null },
         )
-    }
-
-    val stackNames = uiState.stacks.map { it.name }
-    when (stackDialog) {
-        StackDialog.NEW -> StackNameDialog(
+        HomeDialog.NEW -> StackNameDialog(
             title = "New Stack",
             initialName = "",
             existingNames = stackNames,
             confirmLabel = "Create",
             onConfirm = { viewModel.createStack(it) },
-            onDismiss = { stackDialog = null },
+            onDismiss = { dialog = null },
         )
-        StackDialog.RENAME -> StackNameDialog(
+        HomeDialog.RENAME -> StackNameDialog(
             title = "Rename Stack",
             initialName = uiState.activeStack,
             existingNames = stackNames - uiState.activeStack,
             confirmLabel = "Rename",
             onConfirm = { viewModel.renameActiveStack(it) },
-            onDismiss = { stackDialog = null },
+            onDismiss = { dialog = null },
         )
-        StackDialog.DELETE -> ConfirmDialog(
+        HomeDialog.DELETE -> ConfirmDialog(
             title = "Delete \"${uiState.activeStack}\"?",
             text = "This removes the stack and its ${uiState.wallpapers.size} photo(s) from the app. " +
                 "The originals in your gallery aren't affected.",
             confirmLabel = "Delete",
             onConfirm = { viewModel.deleteActiveStack() },
-            onDismiss = { stackDialog = null },
+            onDismiss = { dialog = null },
         )
         null -> Unit
     }
@@ -508,70 +505,26 @@ private fun HeroControlCard(
 
             if (uiState.lastChangedTimestamp > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Schedule,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                StatusHint(icon = Icons.Default.Schedule, text = "Last changed: ${formatDate(uiState.lastChangedTimestamp)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (uiState.isActive && (isBatterySaverOn || isBatteryLow)) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BatteryAlert,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.tertiary,
-                    )
-                    Text(
-                        text = if (isBatterySaverOn) {
-                            "Paused while Battery Saver is on"
-                        } else {
-                            "Paused while battery is low"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                }
+                StatusHint(
+                    icon = Icons.Default.BatteryAlert,
+                    text = if (isBatterySaverOn) {
+                        "Paused while Battery Saver is on"
+                    } else {
+                        "Paused while battery is low"
+                    },
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
             }
 
             // Switching to (or creating) an empty stack doesn't pause rotation, so say why nothing changes.
             if (uiState.isActive && uiState.wallpapers.isEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PhotoLibrary,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                    Text(
-                        text = "\"${uiState.activeStack}\" is empty. Add photos or pick another stack.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+                StatusHint(icon = Icons.Default.PhotoLibrary, text = "\"${uiState.activeStack}\" is empty. Add photos or pick another stack.", color = MaterialTheme.colorScheme.error)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -792,7 +745,7 @@ private fun isBatteryLow(context: Context): Boolean {
 
 private const val LOW_BATTERY_THRESHOLD_PERCENT = 15
 
-private enum class StackDialog { NEW, RENAME, DELETE }
+private enum class HomeDialog { CLEAR, NEW, RENAME, DELETE }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -878,7 +831,8 @@ private fun StackNameDialog(
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
-    val error = StackNames.validate(name, existingNames)
+    // Don't nag about an empty name before the user has typed anything.
+    val error = StackNames.validate(name, existingNames).takeIf { name.isNotEmpty() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -888,12 +842,8 @@ private fun StackNameDialog(
                 onValueChange = { name = it },
                 label = { Text("Name") },
                 singleLine = true,
-                isError = name.isNotEmpty() && error != null,
-                supportingText = if (name.isNotEmpty() && error != null) {
-                    { Text(error) }
-                } else {
-                    null
-                },
+                isError = error != null,
+                supportingText = error?.let { { Text(it) } },
             )
         },
         confirmButton = {
@@ -902,7 +852,7 @@ private fun StackNameDialog(
                     onConfirm(name)
                     onDismiss()
                 },
-                enabled = error == null,
+                enabled = name.isNotEmpty() && error == null,
             ) {
                 Text(confirmLabel)
             }
@@ -1205,6 +1155,28 @@ private fun formatFileSize(size: Long): String {
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
     val formatted = String.format(Locale.getDefault(), "%.1f", size / Math.pow(1024.0, digitGroups.toDouble()))
     return "$formatted ${units[digitGroups]}"
+}
+
+/** A small icon + caption line, used for the status notes under the hero card's title. */
+@Composable
+private fun StatusHint(icon: ImageVector, text: String, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = color,
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = color,
+        )
+    }
 }
 
 /** A [FilterChip] that shows a check mark while selected. */

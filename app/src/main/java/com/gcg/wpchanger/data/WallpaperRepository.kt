@@ -40,8 +40,13 @@ class WallpaperRepository(private val context: Context) {
     // Each subfolder is a stack (see WallpaperStack); photos live inside their stack's folder.
     private val rootDir: File by lazy {
         File(context.filesDir, "wallpapers").apply {
-            if (!exists()) {
-                mkdirs()
+            mkdirs()
+            // One-time upgrade: photos imported before stacks existed sit directly in wallpapers/.
+            // Move them into the default stack, keeping their ids so the shuffle queue stays valid.
+            val looseFiles = listFiles()?.filter { it.isFile }.orEmpty()
+            if (looseFiles.isNotEmpty()) {
+                val target = File(this, StackNames.DEFAULT).apply { mkdirs() }
+                looseFiles.forEach { it.renameTo(File(target, it.name)) }
             }
         }
     }
@@ -76,27 +81,27 @@ class WallpaperRepository(private val context: Context) {
             ?.sortedWith(String.CASE_INSENSITIVE_ORDER)
             ?: emptyList()
 
-    private fun loadStacks(): List<WallpaperStack> = stackNames().map { name ->
-        WallpaperStack(name, stackDir(name).listFiles()?.count { it.isFile && isImageFile(it.name) } ?: 0)
-    }
+    private fun imageFiles(dir: File): List<File> =
+        dir.listFiles()?.filter { it.isFile && isImageFile(it.name) }.orEmpty()
+
+    private fun loadStacks(): List<WallpaperStack> = stackNames().map { WallpaperStack(it, imageFiles(stackDir(it)).size) }
 
     /**
-     * Returns [preferred] if that stack exists, otherwise the first stack, creating a default one
-     * if there are none. Also moves photos imported before stacks existed (loose files directly in
-     * `wallpapers/`) into the default stack, keeping their ids so the shuffle queue stays valid.
+     * The stack that's shown and rotated: the saved one if it still exists, otherwise the first
+     * stack (creating the default one if there are none), persisted so the UI and worker agree.
      */
-    suspend fun resolveStack(preferred: String): String = withContext(Dispatchers.IO) {
-        val looseFiles = rootDir.listFiles()?.filter { it.isFile } ?: emptyList()
-        if (looseFiles.isNotEmpty()) {
-            val target = stackDir(stackNames().firstOrNull() ?: StackNames.DEFAULT).apply { mkdirs() }
-            looseFiles.forEach { it.renameTo(File(target, it.name)) }
+    suspend fun activeStack(preferences: WallpaperPreferences): String {
+        val saved = preferences.getActiveStack()
+        val stack = withContext(Dispatchers.IO) {
+            val names = stackNames()
+            when {
+                saved in names -> saved
+                names.isNotEmpty() -> names.first()
+                else -> StackNames.DEFAULT.also { stackDir(it).mkdirs() }
+            }
         }
-        val names = stackNames()
-        when {
-            preferred in names -> preferred
-            names.isNotEmpty() -> names.first()
-            else -> StackNames.DEFAULT.also { stackDir(it).mkdirs() }
-        }
+        if (stack != saved) preferences.setActiveStack(stack)
+        return stack
     }
 
     suspend fun createStack(name: String): Boolean = withContext(Dispatchers.IO) {
@@ -116,9 +121,7 @@ class WallpaperRepository(private val context: Context) {
     }
 
     private fun loadWallpaperItems(stack: String): List<WallpaperItem> {
-        val files = stackDir(stack).listFiles() ?: return emptyList()
-        return files
-            .filter { it.isFile && isImageFile(it.name) }
+        return imageFiles(stackDir(stack))
             .map { file ->
                 val id = file.nameWithoutExtension
                 val cleanName = parseDisplayName(file.name)

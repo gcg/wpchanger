@@ -86,13 +86,7 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
      */
     private suspend fun reload() = reloadMutex.withLock { repository.refresh(activeStack()) }
 
-    /** The stack that's shown and rotated; falls back to (and persists) another one if it's gone. */
-    private suspend fun activeStack(): String {
-        val saved = preferences.getActiveStack()
-        val stack = repository.resolveStack(saved)
-        if (stack != saved) preferences.setActiveStack(stack)
-        return stack
-    }
+    private suspend fun activeStack(): String = repository.activeStack(preferences)
 
     fun selectStack(name: String) {
         viewModelScope.launch {

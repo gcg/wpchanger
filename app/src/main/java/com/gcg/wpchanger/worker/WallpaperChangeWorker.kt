@@ -35,7 +35,7 @@ class WallpaperChangeWorker(
 
         val lastId = preferences.getLastWallpaperId()
         val queue = preferences.getShuffleQueue()
-        val stack = repository.resolveStack(preferences.getActiveStack())
+        val stack = repository.activeStack(preferences)
         val pick = repository.pickNextRandomWallpaper(stack, lastId, queue)
         val nextWallpaper = pick.item
             ?: return Result.success() // No wallpapers found in the active stack
