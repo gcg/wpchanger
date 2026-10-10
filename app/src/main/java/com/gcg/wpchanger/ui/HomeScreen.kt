@@ -588,6 +588,28 @@ private fun HeroControlCard(
                 }
             }
 
+            // Switching to (or creating) an empty stack doesn't pause rotation, so say why nothing changes.
+            if (uiState.isActive && uiState.wallpapers.isEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        text = "\"${uiState.activeStack}\" is empty. Add photos or pick another stack.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             FilledTonalButton(

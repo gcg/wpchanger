@@ -15,6 +15,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 enum class ImportOutcome {
     SAVED,
@@ -45,7 +46,8 @@ class WallpaperRepository(private val context: Context) {
         }
     }
 
-    private fun stackDir(stack: String): File = File(rootDir, stack).apply { mkdirs() }
+    // Deliberately doesn't create the folder: a stale name (just deleted or renamed) must not resurrect it.
+    private fun stackDir(stack: String): File = File(rootDir, stack)
 
     private val _wallpapers = MutableStateFlow<List<WallpaperItem>>(emptyList())
     val wallpapers: StateFlow<List<WallpaperItem>> = _wallpapers.asStateFlow()
@@ -56,9 +58,12 @@ class WallpaperRepository(private val context: Context) {
     // Per-stack cache of (file size -> content hashes) for cheap duplicate detection across imports.
     // Duplicates are only checked within a stack: the same photo may belong to several stacks.
     // Invalidated whenever the on-disk contents change outside of a single import batch.
-    private val hashIndexCache = mutableMapOf<String, MutableMap<Long, MutableSet<String>>>()
+    private val hashIndexCache = ConcurrentHashMap<String, MutableMap<Long, MutableSet<String>>>()
 
-    /** Reloads the stack list and the photos of [stack] (the one shown in the UI). */
+    /**
+     * Reloads the stack list and the photos of [stack] (the one shown in the UI). Mutating calls
+     * below don't refresh on their own; the caller reloads whichever stack is active by then.
+     */
     suspend fun refresh(stack: String) = withContext(Dispatchers.IO) {
         _stacks.value = loadStacks()
         _wallpapers.value = loadWallpaperItems(stack)
@@ -83,14 +88,14 @@ class WallpaperRepository(private val context: Context) {
     suspend fun resolveStack(preferred: String): String = withContext(Dispatchers.IO) {
         val looseFiles = rootDir.listFiles()?.filter { it.isFile } ?: emptyList()
         if (looseFiles.isNotEmpty()) {
-            val target = stackDir(stackNames().firstOrNull() ?: StackNames.DEFAULT)
+            val target = stackDir(stackNames().firstOrNull() ?: StackNames.DEFAULT).apply { mkdirs() }
             looseFiles.forEach { it.renameTo(File(target, it.name)) }
         }
         val names = stackNames()
         when {
             preferred in names -> preferred
             names.isNotEmpty() -> names.first()
-            else -> StackNames.DEFAULT.also { stackDir(it) }
+            else -> StackNames.DEFAULT.also { stackDir(it).mkdirs() }
         }
     }
 
@@ -129,13 +134,11 @@ class WallpaperRepository(private val context: Context) {
     }
 
     suspend fun importFromUris(stack: String, uris: List<Uri>): ImportSummary = withContext(Dispatchers.IO) {
+        val dir = stackDir(stack)
         val hashIndex = ensureHashIndex(stack)
         var summary = ImportSummary()
         for (uri in uris) {
-            summary = summary.plus(saveUriToFile(stackDir(stack), uri, hashIndex = hashIndex))
-        }
-        if (summary.saved > 0) {
-            refresh(stack)
+            summary = summary.plus(saveUriToFile(dir, uri, hashIndex = hashIndex))
         }
         summary
     }
@@ -143,6 +146,7 @@ class WallpaperRepository(private val context: Context) {
     suspend fun importFromFolder(stack: String, treeUri: Uri): ImportSummary = withContext(Dispatchers.IO) {
         var summary = ImportSummary()
         try {
+            val dir = stackDir(stack)
             val hashIndex = ensureHashIndex(stack)
             val contentResolver = context.contentResolver
             val treeDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
@@ -177,7 +181,7 @@ class WallpaperRepository(private val context: Context) {
 
                     if (mimeType != null && (mimeType.startsWith("image/") || isImageFile(displayName))) {
                         val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                        summary = summary.plus(saveUriToFile(stackDir(stack), documentUri, displayName, hashIndex))
+                        summary = summary.plus(saveUriToFile(dir, documentUri, displayName, hashIndex))
                     }
                 }
             }
@@ -185,9 +189,6 @@ class WallpaperRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        if (summary.saved > 0) {
-            refresh(stack)
-        }
         summary
     }
 
@@ -250,7 +251,6 @@ class WallpaperRepository(private val context: Context) {
         val deleted = fileToDelete?.delete() ?: false
         if (deleted) {
             hashIndexCache.remove(stack)
-            refresh(stack)
         }
         deleted
     }
@@ -264,7 +264,6 @@ class WallpaperRepository(private val context: Context) {
             }
         }
         hashIndexCache.remove(stack)
-        refresh(stack)
         deletedCount
     }
 
