@@ -225,6 +225,14 @@ class WallpaperViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun moveWallpaper(id: String, toStack: String) {
+        viewModelScope.launch {
+            val moved = repository.moveWallpaper(activeStack(), toStack, id)
+            reload()
+            userMessageFlow.value = if (moved) "Moved to \"$toStack\"" else "Could not move photo"
+        }
+    }
+
     fun clearAllWallpapers() {
         viewModelScope.launch {
             val count = repository.clearAllWallpapers(activeStack())

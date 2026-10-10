@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Check
@@ -54,6 +55,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -393,19 +396,45 @@ fun HomeScreen(
                             )
                             .padding(16.dp),
                     ) {
-                        Column {
-                            Text(
-                                text = item.name,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "${formatFileSize(item.sizeBytes)} • Added ${formatDate(item.addedTimestamp)}",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "${formatFileSize(item.sizeBytes)} • Added ${formatDate(item.addedTimestamp)}",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 12.sp,
+                                )
+                            }
+                            val otherStacks = uiState.stacks.map { it.name } - uiState.activeStack
+                            if (otherStacks.isNotEmpty()) {
+                                Box {
+                                    var showMoveMenu by remember { mutableStateOf(false) }
+                                    IconButton(onClick = { showMoveMenu = true }) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                                            contentDescription = "Move to another stack",
+                                            tint = Color.White,
+                                        )
+                                    }
+                                    DropdownMenu(expanded = showMoveMenu, onDismissRequest = { showMoveMenu = false }) {
+                                        otherStacks.forEach { stack ->
+                                            DropdownMenuItem(
+                                                text = { Text("Move to $stack") },
+                                                onClick = {
+                                                    viewModel.moveWallpaper(item.id, stack)
+                                                    previewItem = null
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -526,7 +555,7 @@ private fun HeroControlCard(
             }
 
             // Switching to (or creating) an empty stack doesn't pause rotation, so say why nothing changes.
-            if (uiState.isActive && uiState.wallpapers.isEmpty()) {
+            if (uiState.isActive && uiState.stacks.isNotEmpty() && uiState.wallpapers.isEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 StatusHint(
                     icon = Icons.Default.PhotoLibrary,
@@ -860,7 +889,7 @@ private fun StackNameDialog(
                     onConfirm(name)
                     onDismiss()
                 },
-                enabled = name.isNotEmpty() && error == null,
+                enabled = name.isNotEmpty() && error == null && name.trim() != initialName,
             ) {
                 Text(confirmLabel)
             }

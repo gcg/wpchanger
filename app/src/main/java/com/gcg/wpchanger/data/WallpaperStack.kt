@@ -1,10 +1,24 @@
 package com.gcg.wpchanger.data
 
+import java.io.File
+
 /**
  * A named group of wallpapers. Each stack is a subfolder of `filesDir/wallpapers/` and its
  * [name] is the folder name, so renaming a stack is just a folder rename.
  */
 data class WallpaperStack(val name: String, val count: Int)
+
+/**
+ * One-time upgrade: photos imported before stacks existed sit directly in [root] (`wallpapers/`).
+ * Moves them into the default stack, keeping file names (and so ids, so the shuffle queue and
+ * "last applied" stay valid). A no-op once there are no loose files.
+ */
+internal fun migrateLooseFiles(root: File) {
+    val looseFiles = root.listFiles()?.filter { it.isFile }.orEmpty()
+    if (looseFiles.isEmpty()) return
+    val target = File(root, StackNames.DEFAULT).apply { mkdirs() }
+    looseFiles.forEach { it.renameTo(File(target, it.name)) }
+}
 
 object StackNames {
     const val DEFAULT = "My Photos"

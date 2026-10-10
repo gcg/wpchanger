@@ -41,13 +41,7 @@ class WallpaperRepository(private val context: Context) {
     private val rootDir: File by lazy {
         File(context.filesDir, "wallpapers").apply {
             mkdirs()
-            // One-time upgrade: photos imported before stacks existed sit directly in wallpapers/.
-            // Move them into the default stack, keeping their ids so the shuffle queue stays valid.
-            val looseFiles = listFiles()?.filter { it.isFile }.orEmpty()
-            if (looseFiles.isNotEmpty()) {
-                val target = File(this, StackNames.DEFAULT).apply { mkdirs() }
-                looseFiles.forEach { it.renameTo(File(target, it.name)) }
-            }
+            migrateLooseFiles(this)
         }
     }
 
@@ -256,6 +250,17 @@ class WallpaperRepository(private val context: Context) {
             hashIndexCache.remove(stack)
         }
         deleted
+    }
+
+    /** Moves photo [id] from stack [from] to [to], keeping its id (and its place in the shuffle queue). */
+    suspend fun moveWallpaper(from: String, to: String, id: String): Boolean = withContext(Dispatchers.IO) {
+        val file = imageFiles(stackDir(from)).find { it.nameWithoutExtension == id } ?: return@withContext false
+        val moved = file.renameTo(File(stackDir(to), file.name))
+        if (moved) {
+            hashIndexCache.remove(from)
+            hashIndexCache.remove(to)
+        }
+        moved
     }
 
     suspend fun clearAllWallpapers(stack: String): Int = withContext(Dispatchers.IO) {
