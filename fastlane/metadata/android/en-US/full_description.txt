@@ -1,6 +1,6 @@
 Turn your own photos into a wallpaper that keeps changing.
 
-Pick a few favorite shots or a whole album, choose how often you want something new, and Wallpaper Changer takes care of the rest, quietly, in the background.
+Pick a few favorite shots or a whole album, choose how often you want something new, and Wallpaper Stack Shuffle takes care of the rest, quietly, in the background.
 
 <b>How it works</b>
 • Add photos with the system photo picker, or import an entire folder at once
@@ -27,4 +27,4 @@ Rotation uses Android's own job scheduler, pauses automatically in Battery Saver
 • Material You design that follows your wallpaper's colors, in light and dark mode
 • Keeps rotating after a restart
 
-Wallpaper Changer is open source: github.com/gcg/wpchanger
+Wallpaper Stack Shuffle is open source: github.com/gcg/wpchanger

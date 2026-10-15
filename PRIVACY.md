@@ -1,8 +1,8 @@
-# Privacy Policy — Wallpaper Changer
+# Privacy Policy — Wallpaper Stack Shuffle
 
-_Last updated: October 3, 2026_
+_Last updated: October 15, 2026_
 
-Wallpaper Changer ("the app") is developed by Guney Can Gokoglu. This policy explains what the app does with your data. The short version: **nothing leaves your device.**
+Wallpaper Stack Shuffle ("the app") is developed by Guney Can Gokoglu. This policy explains what the app does with your data. The short version: **nothing leaves your device.**
 
 ## Data the app accesses
 

@@ -91,6 +91,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,6 +105,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.gcg.wpchanger.R
 import com.gcg.wpchanger.data.StackNames
 import com.gcg.wpchanger.data.TimerInterval
 import com.gcg.wpchanger.data.WallpaperItem
@@ -190,7 +192,7 @@ fun HomeScreen(
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         Text(
-                            text = "Wallpaper Changer",
+                            text = stringResource(R.string.app_name),
                             fontWeight = FontWeight.Bold,
                         )
                     }

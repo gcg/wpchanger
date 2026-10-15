@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Wallpaper Changer" width="720">
+  <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Wallpaper Stack Shuffle" width="720">
 </p>
 
 <p align="center">
