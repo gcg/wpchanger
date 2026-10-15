@@ -1,6 +1,6 @@
 # Guidelines for AI Agents & Developers
 
-This document defines the quality standards, architectural conventions, and mandatory workflows for developing and maintaining the **Wallpaper Changer** codebase.
+This document defines the quality standards, architectural conventions, and mandatory workflows for developing and maintaining the **Wallpaper Stack Shuffle** codebase.
 
 ---
 

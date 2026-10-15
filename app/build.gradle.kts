@@ -24,7 +24,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.gcg.wpchanger"
+        applicationId = "me.gcg.wpchanger"
         minSdk = 34
         targetSdk = 36
         versionCode = 1

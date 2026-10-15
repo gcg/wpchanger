@@ -17,9 +17,9 @@ Everything that can live in the repo is done. What's left needs your accounts, k
 ## 📝 Your checklist
 
 ### 0. Quick decisions
-- [ ] **Set GitHub's default branch to `main`.** It's currently `feature/claude`, so the repo page shows an old README. Go to Settings → General → Default branch.
-- [ ] **App name.** "Wallpaper Changer" is fine for Play but very generic, with many apps of the same name. Rename now if you want something distinctive (`app_name` in `strings.xml` + `title.txt`, max 30 chars).
-- [ ] **Package name `com.gcg.wpchanger` is permanent** once uploaded. Keep it unless you object now.
+- [x] **GitHub default branch is `main`.**
+- [x] **App name: Wallpaper Stack Shuffle** (`app_name` in `strings.xml` + `title.txt`, max 30 chars).
+- [x] **Package name: `me.gcg.wpchanger`** (`applicationId`; the code namespace stays `com.gcg.wpchanger`). Permanent once uploaded.
 - [ ] *(Optional)* Add a `LICENSE`. Without one, the code is "all rights reserved".
 
 ### 1. Developer account (~1–3 days)

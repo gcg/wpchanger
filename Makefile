@@ -8,11 +8,11 @@ export PATH := $(HOME)/Library/Android/sdk/platform-tools:$(HOME)/Library/Androi
 # even in shells where the PATH export above doesn't propagate to every subprocess.
 ADB := $(HOME)/Library/Android/sdk/platform-tools/adb
 
-PACKAGE_NAME := com.gcg.wpchanger
-ACTIVITY_NAME := $(PACKAGE_NAME)/.MainActivity
+PACKAGE_NAME := me.gcg.wpchanger
+ACTIVITY_NAME := $(PACKAGE_NAME)/com.gcg.wpchanger.MainActivity
 
 help: ## Show available commands and their descriptions
-	@echo "\033[1;36mWallpaper Changer - Project Commands\033[0m"
+	@echo "\033[1;36mWallpaper Stack Shuffle - Project Commands\033[0m"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[32m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo ""
