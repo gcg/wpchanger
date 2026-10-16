@@ -6,10 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.BatteryManager
 import android.os.PowerManager
-import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -130,9 +128,6 @@ fun HomeScreen(
     var dialog by remember { mutableStateOf<HomeDialog?>(null) }
 
     val context = LocalContext.current
-    var isIgnoringBatteryOptimizations by remember {
-        mutableStateOf(isIgnoringBatteryOptimizations(context))
-    }
     var hasNotificationPermission by remember {
         mutableStateOf(hasNotificationPermission(context))
     }
@@ -140,9 +135,8 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // Re-check after returning from the system battery/notification settings screen,
+                // Re-check after returning from the system notification settings screen,
                 // or after responding to the notification permission prompt.
-                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
                 hasNotificationPermission = hasNotificationPermission(context)
             }
         }
@@ -224,23 +218,6 @@ fun HomeScreen(
                     isBatterySaverOn = isBatterySaverOn,
                     isBatteryLow = isBatteryLow,
                 )
-            }
-
-            // Battery optimization nudge (only relevant once rotation is actually turned on)
-            if (uiState.isActive && !isIgnoringBatteryOptimizations) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    BatteryOptimizationBanner(
-                        onRequestClick = {
-                            // Opens App info rather than the direct exemption prompt: Play policy only
-                            // allows REQUEST_IGNORE_BATTERY_OPTIMIZATIONS for apps like VoIP or navigation.
-                            val intent = Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.parse("package:${context.packageName}"),
-                            )
-                            context.startActivity(intent)
-                        },
-                    )
-                }
             }
 
             // Timer Interval Options
@@ -718,52 +695,6 @@ private fun TargetScreenCard(
             }
         }
     }
-}
-
-@Composable
-private fun BatteryOptimizationBanner(onRequestClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-        ),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.BatteryAlert,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Improve rotation reliability",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-                Text(
-                    text = "Battery optimization can delay or skip scheduled wallpaper changes. For on-time rotation, set this app's battery usage to Unrestricted in App info.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-            TextButton(onClick = onRequestClick) {
-                Text("Open")
-            }
-        }
-    }
-}
-
-private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
-    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
 }
 
 private fun hasNotificationPermission(context: Context): Boolean {
