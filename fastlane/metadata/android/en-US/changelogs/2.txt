@@ -1,0 +1,1 @@
+• Removed the battery optimization banner: rotation stays battery-friendly without asking for Unrestricted battery usage

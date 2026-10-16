@@ -7,9 +7,9 @@ Everything that can live in the repo is done. What's left needs your accounts, k
 - [x] **targetSdk 36** (required for new apps since Aug 31, 2026); AGP 8.13 / Gradle 8.13
 - [x] **Release signing** from git-ignored `keystore.properties` (or `WPCHANGER_*` env vars for CI)
 - [x] `make keystore` (generate upload key) and `make bundle` (signed `.aab`)
-- [x] Removed `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`: Play only allows it for VoIP, navigation, and similar apps. The battery banner now opens App info instead.
+- [x] Removed `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`: Play only allows it for VoIP, navigation, and similar apps. The app no longer asks for an exemption at all.
 - [x] Removed WorkManager's unused foreground service, so there's no FGS declaration to fill in
-- [x] Release build (R8-minified) smoke-tested on an API 37 emulator: folder import, apply now, scheduling, notifications permission, battery banner
+- [x] Release build (R8-minified) smoke-tested on an API 37 emulator: folder import, apply now, scheduling, notifications permission
 - [x] Store listing text + graphics in [`fastlane/metadata/android/en-US/`](../fastlane/metadata/android/en-US/)
 - [x] Privacy policy: [`PRIVACY.md`](../PRIVACY.md)
 - [x] CI workflow (format check, lint, tests, debug APK artifact)
